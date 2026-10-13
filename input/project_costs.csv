@@ -1,0 +1,9 @@
+technology,annual_capital_yuan_per_mw,variable_yuan_per_mwh,source_capex_usd_per_kw,source_fom_usd_per_kw_year,source_vom_usd_per_mwh,lifetime_years,assumed_cny_per_usd,assumed_discount_rate,source_technology_detail,source_url,note
+coal,2879493.01,365.1,4012.539704049656,88.0,9.3,30,7.0,0.07,Coal-new,https://atb.nlr.gov/electricity/2025/data,美国官方技术成本基准，仅供本地试算；燃料/汇率为可编辑假设
+gas,975198.6,614.0,1354.0011774925022,30.2,2.0,30,7.0,0.07,NG 2-on-1 Combined Cycle (H-Frame),https://atb.nlr.gov/electricity/2025/data,美国官方技术成本基准，仅供本地试算；燃料/汇率为可编辑假设
+hydro,5973735.79,0.0,9780.01354695028,168.0,0.0,100,7.0,0.07,NPD5,https://atb.nlr.gov/electricity/2025/data,美国官方技术成本基准，仅供本地试算；燃料/汇率为可编辑假设
+pumped,1734362.92,4.27,3236.0681602070485,20.98,0.61,100,7.0,0.07,NatlClass3,https://atb.nlr.gov/electricity/2025/data,美国官方技术成本基准，仅供本地试算；燃料/汇率为可编辑假设
+battery,1422581.05,0.0,1396.725128098887,49.872953642927776,0.0,15,7.0,0.07,4Hr Battery Storage,https://atb.nlr.gov/electricity/2025/data,美国官方技术成本基准，仅供本地试算；燃料/汇率为可编辑假设
+wind,1341015.25,0.0,1871.7323387889708,40.73743,0.0,30,7.0,0.07,Class4,https://atb.nlr.gov/electricity/2025/data,美国官方技术成本基准，仅供本地试算；燃料/汇率为可编辑假设
+solar,840516.19,0.0,1490.0,0.0,0.0,30,7.0,0.07,2024 base year,https://atb.nlr.gov/electricity/2025/utility-scale_pv,美国官方技术成本基准，仅供本地试算；燃料/汇率为可编辑假设
+biomass,4043959.95,389.12,5484.17701424607,174.62390670553938,5.587949465500486,45,7.0,0.07,Dedicated,https://atb.nlr.gov/electricity/2025/data,美国官方技术成本基准，仅供本地试算；燃料/汇率为可编辑假设

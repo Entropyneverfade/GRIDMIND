@@ -1,0 +1,36 @@
+{
+  "reserve_margin": 0.10,
+  "max_unserved_mwh": 0.0,
+  "curtailment_priority": "solar_first",
+  "operating_reserve_ratio": 0.03,
+  "max_reserve_shortfall_mwh": 0.0,
+  "storage_lookahead_hours": 48,
+  "dispatch_mode": "rules",
+  "terminal_storage_value_yuan_per_mwh": 300,
+  "existing_plants": [
+    {"name": "现有火电", "technology": "thermal", "capacity_mw": 75, "firm_capacity_mw": 75, "variable_cost_yuan_per_mwh": 450, "min_output_mw": 25},
+    {"name": "现有风电", "technology": "wind", "capacity_mw": 18, "firm_capacity_mw": 0, "variable_cost_yuan_per_mwh": 20},
+    {"name": "现有光伏", "technology": "solar", "capacity_mw": 12, "firm_capacity_mw": 0, "variable_cost_yuan_per_mwh": 15},
+    {"name": "现有储能", "technology": "storage", "capacity_mw": 10, "firm_capacity_mw": 0, "variable_cost_yuan_per_mwh": 20,
+     "storage": {"charge_power_mw": 10, "energy_capacity_mwh": 40, "roundtrip_efficiency": 0.81, "initial_energy_mwh": 0}}
+  ],
+  "candidate_plants": [
+    {"name": "燃气机组A", "technology": "thermal", "capacity_mw": 30, "firm_capacity_mw": 30, "variable_cost_yuan_per_mwh": 610, "annual_fixed_cost_yuan": 7000000},
+    {"name": "燃气机组B", "technology": "thermal", "capacity_mw": 30, "firm_capacity_mw": 30, "variable_cost_yuan_per_mwh": 610, "annual_fixed_cost_yuan": 7000000},
+    {"name": "高效火电", "technology": "thermal", "capacity_mw": 55, "firm_capacity_mw": 55, "variable_cost_yuan_per_mwh": 340, "annual_fixed_cost_yuan": 30000000, "min_output_mw": 15},
+    {"name": "候选风电", "technology": "wind", "capacity_mw": 40, "firm_capacity_mw": 0, "variable_cost_yuan_per_mwh": 20, "annual_fixed_cost_yuan": 12000000},
+    {"name": "候选光伏", "technology": "solar", "capacity_mw": 40, "firm_capacity_mw": 0, "variable_cost_yuan_per_mwh": 15, "annual_fixed_cost_yuan": 10000000},
+    {"name": "候选储能", "technology": "storage", "capacity_mw": 20, "firm_capacity_mw": 0, "variable_cost_yuan_per_mwh": 20, "annual_fixed_cost_yuan": 4000000,
+     "storage": {"charge_power_mw": 20, "energy_capacity_mwh": 80, "eta_charge": 0.9, "eta_discharge": 0.9, "initial_energy_mwh": 0}}
+  ],
+  "genetic_algorithm": {
+    "population_size": 16,
+    "max_generations": 60,
+    "min_generations": 10,
+    "stall_generations": 15,
+    "elite_count": 1,
+    "crossover_rate": 0.8,
+    "mutation_rate": 0.08,
+    "seed": 1
+  }
+}

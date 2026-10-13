@@ -1,0 +1,7 @@
+# 计算模块使用标准库；单一汇总XLSX使用openpyxl。
+# 原生绘图需要Windows + 已安装并注册COM的Origin；--skip-figures仍输出XLSX。
+# 可选Gurobi优化模式：python -m pip install gurobipy（还需要有效许可证）。
+# 将所有逐时和统计表合成一个可筛选XLSX，程序只依赖常见的openpyxl。
+openpyxl>=3.1,<4
+# 仅交互查看窗口需要；Origin静态出图继续使用独立原生工程。
+matplotlib>=3.8,<4

@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+build_cache/
+dist/
+GRIDMIND_data/
+GRIDMIND_results/
+runs/
+output/
+output_gurobi/
+*.xlsx
+*.opju
+*.exe
