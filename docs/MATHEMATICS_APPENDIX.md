@@ -187,6 +187,6 @@ L_t(h)=P^{peak}_t f^{load}_t(h),\qquad
 A^{wind}_{i,t}(h)=P^{design}_i f^{wind}_{i,t}(h).
 \]
 
-目标年定义的 \(P^{design}_i\)、项目身份和状态位 \(s_{t,i}\) 在两个阶段保持相同；年度源库里已列出的候选容量仍由 \(s_{t,i}\) 决定是否投运，不能算入固定存量。常规水电年度月预算则使用该年水文因子：\(B_{i,m,t}=P^{design}_i H_m u_h f^{hydro}_{i,m,t}\)。The separate yearly profiles change stage operations, while terminal project design and binary identity remain common. Missing annual renewable or hydro records cause an explicit error rather than a silent reuse of terminal weather.
+目标年定义的候选项目 \(P^{design}_i\)、身份和状态位 \(s_{t,i}\) 在两个阶段保持相同；各年度**既有机组**容量 \(P^{old}_{j,t}\) 必须取该年度源库，不能把终期存量提前放入上一年。年度源库里已列出的候选增量仍由 \(s_{t,i}\) 决定是否投运，不能算入固定存量。因此阶段可用容量按物理机组归并为 \(P_{j,t}=P^{old}_{j,t}+s_{t,j}P^{design}_j\)（对没有对应候选位的机组取第二项为零）。常规水电年度月预算使用该年水文因子与实际投运容量：\(B_{j,m,t}=P_{j,t}H_m u_h f^{hydro}_{j,m,t}\)。Existing capacities and operating profiles are year specific; terminal project design and binary identity are common. Missing annual renewable or hydro records cause an explicit error rather than a silent reuse of terminal weather.
 
 可选“系数情景”设 \(L_{t-1}(h)=\alpha L_t(h)\)，并复用目标年的天气；它是明确的人为情景，\(\alpha\in(0,1]\)。The published GA–DP synthetic comparison deliberately uses this controlled scenario with \(\alpha=0.82\), so both algorithms query identical stage-cost tables. Neither input mode currently models project construction lead times or commissioning eligibility.

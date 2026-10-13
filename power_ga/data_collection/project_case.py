@@ -261,11 +261,12 @@ def load_project_case(source_folder: Path, target_year: int, cost_path: Path) ->
 
 
 def align_stage_case(final_case: ProjectCase, year_case: ProjectCase) -> ProjectCase:
-    """把该年源库曲线接入统一候选位；建设容量和经济参数沿用终期设计。"""
+    """逐年存量按年度库，候选项目按终期统一位序和设计容量对齐。"""
     if year_case.target_year >= final_case.target_year or year_case.base_year != final_case.base_year:
         raise ValueError("阶段源数据年份必须在共同基年之后、终期目标年之前")
-    # 阶段源库中已投运的新增容量仍是规划备选项，不能并入固定存量。
-    # 因而只借用该年的负荷、外送、风光与水文曲线，保留终期0/1建设位。
+    # 阶段存量采用当年库的基年已有有效容量，包含年度退役/扩容变化。
+    # 当年库中超过基年存量的容量仍属可选建设，不能提前并入固定存量；
+    # 候选位、项目容量和投资参数继续以终期设计统一编码。
     annual_plants = {plant.station_id: plant
                      for plant in year_case.existing + year_case.candidates}
     warnings = list(year_case.warnings)
@@ -289,7 +290,7 @@ def align_stage_case(final_case: ProjectCase, year_case: ProjectCase) -> Project
         return plant
 
     return replace(final_case, target_year=year_case.target_year,
-                   existing=tuple(map(use_year_profile, final_case.existing)),
+                   existing=year_case.existing,
                    candidates=tuple(map(use_year_profile, final_case.candidates)),
                    domestic_load_mw=year_case.domestic_load_mw,
                    export_mw=year_case.export_mw,

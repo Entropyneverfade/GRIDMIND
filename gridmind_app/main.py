@@ -12,6 +12,8 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+APP_VERSION = "0.2.2"
+
 # 直接运行本文件或单文件EXE时，让窗口入口可导入同级算法包。
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -108,7 +110,7 @@ def show_dp_window(result_dir):
     discounted = [float(row["折现费用元"]) / 1e8 for row in rows]
     states = [int(row["累计状态整数"]) for row in rows]
     window = tk.Tk()
-    window.title("GRIDMIND · 动态规划阶段结果")
+    window.title(f"GRIDMIND {APP_VERSION} · 动态规划阶段结果")
     history_path = Path(result_dir) / "tables" / "multiyear_ga_history.csv"
     has_comparison = history_path.is_file()
     window.geometry("1050x790" if has_comparison else "1050x700")
@@ -181,7 +183,7 @@ def launch_app(smoke=False):
     from project_main import execute
 
     root = tk.Tk()
-    root.title("GRIDMIND · 电源规划与全年运行模拟")
+    root.title(f"GRIDMIND {APP_VERSION} · 电源规划与全年运行模拟")
     root.geometry("950x690")
     root.minsize(850, 600)
     icon = resource("gridmind_app/assets/gridmind.ico")
@@ -191,7 +193,7 @@ def launch_app(smoke=False):
         root.withdraw()
     frame = ttk.Frame(root, padding=18)
     frame.pack(fill="both", expand=True)
-    ttk.Label(frame, text="GRIDMIND", font=("Microsoft YaHei UI", 25, "bold"),
+    ttk.Label(frame, text=f"GRIDMIND {APP_VERSION}", font=("Microsoft YaHei UI", 25, "bold"),
               foreground="#17365D").grid(row=0, column=0, sticky="w", columnspan=3)
     ttk.Label(frame, text="全年8760小时 · 多类型电源 · 遗传/动态规划 · 可复用结果存档",
               foreground="#56718A").grid(row=1, column=0, sticky="w", columnspan=3, pady=(0, 22))

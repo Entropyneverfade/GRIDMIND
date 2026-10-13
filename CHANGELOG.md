@@ -1,5 +1,11 @@
 # Development progress / 开发进度
 
+## 2026-10-14 — Stage 0.2.2 / 年度存量容量修正
+
+- 修正年度源输入模式：前一年既有机组有效装机从前一年源库读取，终期只定义共同候选位与设计容量。Correct annual source-mode dispatch to use that year's existing capacity, while terminal data defines the common optional-project bits.
+- 加入“前一年50 MW、终期100 MW、负荷75 MW”的8760小时缺供与功率守恒反例；旧版年度源模式结果需重算。Added a synthetic physical counterexample; prior source-mode results must be rerun.
+- 桌面窗口明确显示版本号，便于区分仍在运行的旧版与新版。The desktop title displays its version so an older open window can be identified.
+
 ## 2026-10-14 — Stage 0.2.1 / 年度阶段源输入
 
 - 双年度动态规划默认使用前一年与目标年各自的负荷、外送、风光和水文曲线，保留终期共同候选位。Two-year DP now defaults to separate annual input profiles while maintaining a common candidate encoding.

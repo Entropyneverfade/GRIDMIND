@@ -2,6 +2,8 @@
 
 GRIDMIND is a modular research prototype for generation planning and chronological power system operation. GRIDMIND 是模块化的电源规划与全年逐时运行研究原型。桌面入口位于 `gridmind_app/`，算法位于 `power_ga/`，两者通过 `project_main.execute()` 连接。
 
+**0.2.2 修正 / Correction:** 0.2.1 的“年度源库”模式错误沿用了终期既有装机；使用过该模式的规划结果须用 0.2.2 或更新版本重算。The 0.2.1 annual source mode inherited terminal existing capacity in the earlier stage; rerun those results with 0.2.2 or newer. The controlled synthetic scaled case is unaffected by this specific issue.
+
 ## Current capabilities / 当前能力
 
 - Binary candidate-project encoding, initial population, selection, crossover, mutation, elitism and convergence records. / 候选项目二元编码、初代、选择、交叉、变异、精英保留及收敛记录。

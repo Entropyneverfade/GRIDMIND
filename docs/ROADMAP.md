@@ -5,6 +5,7 @@
 - 八类电源的 8,760 小时确定性运行、抽蓄与电池逐站库存、月水电预算上界。Eight resource classes, hourly balance, storage continuity and monthly hydro bounds.
 - 单年二元遗传规划，阶段状态动态规划，Gurobi 状态路径独立核验。Single-year GA and two-year DP scenario with Gurobi validation.
 - 双年度阶段可读取各自年度库的负荷、外送、风光及水文曲线；候选项目采用终期统一编码。Two-year planning can use separate annual operating profiles while preserving common project bits.
+- 各年度已有机组按各自年度库的有效容量运行，候选项目仍按统一状态位投运。Existing units use year-specific effective capacity; optional projects retain common state bits.
 - 原创图标 Windows EXE、规划算法切换、日周月年及任意区间窗口、图表分开存档。Windows application, algorithm selector, zoom viewer and separate table/figure archives.
 - 公开合成 GA/DP 案例、两种算法同口径对比、12 张月图及完整公式。Synthetic case, comparison, monthly gallery and mathematical derivations.
 

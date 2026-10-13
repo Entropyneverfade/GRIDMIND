@@ -1,5 +1,5 @@
 ﻿# GRIDMIND应用打包入口；本文件只处理窗口与依赖，不修改算法模块。
-param([string]$PythonPath = 'python', [string]$Version = '0.2.1')
+param([string]$PythonPath = 'python', [string]$Version = '0.2.2')
 $ErrorActionPreference = 'Stop'
 $app = Split-Path -Parent $MyInvocation.MyCommand.Path
 $project = Split-Path -Parent $app

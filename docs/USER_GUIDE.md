@@ -8,10 +8,12 @@ Windows 用户双击 `GRIDMIND.exe`；源码用户安装 `requirements.txt` 后�
 
 1. 选择兼容的年度项目数据库目录与可编辑经济参数 CSV。原始库保持只读；软件创建独立结果目录。Select the input folder and editable cost table; the original files are not overwritten.
 2. 选择目标年、种群、代数与随机种子。单年遗传算法使用这些参数。Choose the target year and GA controls.
-3. 在“规划方法”切换“遗传算法”或“动态规划（双年度）”。DP 默认选“年度源库”：分别读取两个年度的负荷、外送、风光及水文曲线，同时保持候选项目的终期设计容量和状态位一致。源库曲线是规划输入，不能自动当成历史实测。也可选“系数情景”，用界面中的负荷系数（默认 0.95）构造前一年负荷，并复用目标年天气；这种情景不能当作前一年真实运行复原。The default DP mode reads each year's separate demand, export, renewable and hydro inputs. These are planning inputs, not necessarily historical observations; the optional scaled scenario reuses target-year weather.
+3. 在“规划方法”切换“遗传算法”或“动态规划（双年度）”。DP 默认选“年度源库”：分别读取两个年度的既有机组有效装机、负荷、外送、风光及水文曲线，同时保持候选项目的终期设计容量和状态位一致。源库曲线是规划输入，不能自动当成历史实测。也可选“系数情景”，用界面中的负荷系数（默认 0.95）构造前一年负荷，并复用目标年天气；这种情景不能当作前一年真实运行复原。The default DP mode reads year-specific existing capacities and separate operating profiles. These are planning inputs, not necessarily historical observations; the optional scaled scenario reuses target-year weather.
 4. 点击“运行所选规划与全年模拟”。“仅模拟基年存量”只计算运行，不搜索新建方案。Click the planning button or run the existing system only.
 
 动态规划当前最多允许 8 个候选位，目标年须至少比基年晚 2 年，贴现率默认 7%。阶段费用使用年化建设费加全年运行费。超出上限时给出错误，不截断候选集。The cap prevents accidental exponential runs and never silently drops projects.
+
+如果曾用 0.2.1 的“年度源库”模式生成结果，请用 0.2.2 或更新版本重新运行：旧版前一年既有装机误取自终期。Prior source-mode archives from 0.2.1 require rerunning because the preceding year's existing capacity was inherited from the terminal case.
 
 Gurobi 在 DP 模式中优化**年度状态路径**并与 Bellman 递推交叉核验；各状态的全年运行费仍由已说明的确定性8760小时运行规则计算。The stage MILP is not a yearlong unit commitment or network power-flow optimization.
 

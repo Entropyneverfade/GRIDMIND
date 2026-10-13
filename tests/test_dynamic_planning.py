@@ -8,10 +8,26 @@ from types import SimpleNamespace
 
 from power_ga.data_collection.project_case import CasePlant, ProjectCase, align_stage_case
 from power_ga.dynamic_planning.solver import _dp_tables, _gurobi_path, _validate_cases
+from power_ga.operation_simulation.project_engine import simulate_project
 from power_ga.result_output.dynamic_report import write_dynamic_report
 
 
 class DynamicPlanningTests(unittest.TestCase):
+    def test_annual_existing_capacity_changes_hourly_feasibility(self):
+        """前一年仅有50MW存量时不能偷用终期100MW；逐时缺口仍要守恒。"""
+        def make(year, capacity):
+            plant = CasePlant(1, "合成燃气", "gas", capacity, 0, 400, 0)
+            return ProjectCase(2025, year, (plant,), (), (75,) * 8760,
+                               (0,) * 8760, 0, 657, (), "synthetic", "synthetic")
+        previous, terminal = make(2026, 50), make(2027, 100)
+        stage = align_stage_case(terminal, previous)
+        prior_run = simulate_project(stage, (), reserve_ratio=0)
+        terminal_run = simulate_project(terminal, (), reserve_ratio=0)
+        self.assertEqual(50, stage.existing[0].capacity_mw)
+        self.assertEqual(25 * 8760, prior_run.summary["unserved"])
+        self.assertEqual(0, terminal_run.summary["unserved"])
+        self.assertLess(prior_run.summary["max_balance_residual_mw"], 1e-6)
+
     def test_stage_report_records_comparable_ga_path(self):
         """同一费用表的GA路径和差距必须写入阶段汇总，且不可行时不能报假差距。"""
         stage = lambda year, state, new, cost: SimpleNamespace(
@@ -57,19 +73,21 @@ class DynamicPlanningTests(unittest.TestCase):
         hydro_year = CasePlant(11, "水电", "hydro", 25, 0, 0, 0,
                                hydro_monthly_factor=(0.3,) * 12)
         gas_final = CasePlant(20, "燃气", "gas", 15, 0.2, 400, 1000)
-        final = ProjectCase(2025, 2027, (wind_final, hydro_final), (gas_final,),
+        final = ProjectCase(2025, 2027, (hydro_final,), (wind_final, gas_final),
                             (100,) * 8760, (5,) * 8760, .15, 800,
                             (), "source", "cost")
-        annual = ProjectCase(2025, 2026, (wind_year, hydro_year), (),
+        annual = ProjectCase(2025, 2026, (hydro_year,), (wind_year,),
                              (70,) * 8760, (3,) * 8760, .12, 600,
                              (), "source", "cost")
         stage = align_stage_case(final, annual)
-        self.assertEqual((70, 3, .6), (stage.domestic_load_mw[0],
-                                        stage.export_mw[0], stage.existing[0].profile[0]))
-        self.assertEqual((15, 1000), (stage.candidates[0].capacity_mw,
-                                       stage.candidates[0].annual_cost_yuan))
-        self.assertEqual((30, .3), (stage.existing[1].capacity_mw,
-                                   stage.existing[1].hydro_monthly_factor[0]))
+        self.assertEqual((70, 3, .6, 20), (stage.domestic_load_mw[0],
+                                            stage.export_mw[0],
+                                            stage.candidates[0].profile[0],
+                                            stage.candidates[0].capacity_mw))
+        self.assertEqual((15, 1000), (stage.candidates[1].capacity_mw,
+                                       stage.candidates[1].annual_cost_yuan))
+        self.assertEqual((25, .3), (stage.existing[0].capacity_mw,
+                                   stage.existing[0].hydro_monthly_factor[0]))
         self.assertEqual(2026, stage.target_year)
         self.assertIn("未列电站20", " ".join(stage.warnings))
 
