@@ -1,4 +1,4 @@
-"""GRIDMIND真实算例输出：图表分目录、同一工作簿、逐时原值和存档清单。"""
+"""GRIDMIND项目算例输出：图表分目录、同一工作簿、逐时原值和存档清单。"""
 
 import hashlib
 import json
@@ -53,7 +53,8 @@ def _periods(hourly, lengths):
     return ["序号", "开始小时", "结束小时", "最大总需求MW"] + labels, rows
 
 
-def write_project_report(case, result, simulation, output_dir: Path, make_figures=True):
+def write_project_report(case, result, simulation, output_dir: Path, make_figures=True,
+                         synthetic=False):
     """所有表格合入一个XLSX，图片和工程进入独立figures目录。"""
     if len(simulation.hourly) != 8760:
         raise ValueError("归档需要完整8760小时结果")
@@ -126,14 +127,16 @@ def write_project_report(case, result, simulation, output_dir: Path, make_figure
     _add_sheet(book, "资料校核", ["序号", "校核结果"],
                [[i, warning] for i, warning in enumerate(case.warnings, 1)])
     _add_sheet(book, "口径说明", ["项目", "说明"], [
-        ["数据来源", case.source_folder],
-        ["费用来源", case.cost_file],
+        ["数据来源", "公开合成脚本" if synthetic else case.source_folder],
+        ["费用来源", "公开合成参数表 examples/synthetic_case_costs.csv" if synthetic else case.cost_file],
         ["基年/目标", f"{case.base_year}有效存量；{case.target_year}增量为候选项目"],
         ["外送", "联络线外送功率=额定MW×逐时外送系数，计入固定需求"],
-        ["网架", "库内电站均挂在节点1；本版不宣称完成省内交流潮流约束"],
+        ["网架", "单区域合成模型，不含线路潮流" if synthetic else
+         "库内电站均挂在节点1；本版不宣称完成省内交流潮流约束"],
         ["水电", "M1–M12水文相对系数×0.42试算利用率×容量×月小时数；月间不借用"],
         ["储能", "库容=额定MW×储能时长h；往返效率按平方根分解，年初SOC=0"],
-        ["成本", "官方美国技术基准经7.0试算汇率及7%贴现率换算；燃料费为可编辑情景假设"],
+        ["成本", "随算例公开的合成试算成本，不是项目报价" if synthetic else
+         "官方美国技术基准经7.0试算汇率及7%贴现率换算；燃料费为可编辑情景假设"],
         ["可靠性", "风光/储能规划可信容量保守取0；不等于ELCC或概率可靠性认证"],
         ["时间", "365日规划年共8760小时；闰年省略2月29日；逐时功率和库存保留原始值"],
     ])
@@ -141,11 +144,14 @@ def write_project_report(case, result, simulation, output_dir: Path, make_figure
     # 运行清单存哈希及文件路径；费用参数拷贝到当次tables供以后复算。
     shutil.copy2(case.cost_file, tables / "技术经济参数快照.csv")
     source = Path(case.source_folder)
+    # 合成发布不假造外部数据库文件哈希；真实项目仍逐年记录源工作簿哈希。
+    source_hashes = ({} if synthetic else {
+        str(year): _hash_file(source / str(year) / f"{year}.xlsx")
+        for year in {case.base_year, case.target_year}})
     manifest = {"app": "GRIDMIND", "base_year": case.base_year,
-                "target_year": case.target_year, "source_folder": case.source_folder,
-                "source_workbook_sha256": {
-                    str(year): _hash_file(source / str(year) / f"{year}.xlsx")
-                    for year in {case.base_year, case.target_year}},
+                "target_year": case.target_year,
+                "source_folder": "synthetic" if synthetic else case.source_folder,
+                "synthetic": bool(synthetic), "source_workbook_sha256": source_hashes,
                 "cost_sha256": _hash_file(Path(case.cost_file)),
                 "selected_chromosome": list(selected), "warnings": list(case.warnings),
                 "figures_created": bool(make_figures)}

@@ -1,0 +1,17 @@
+{
+  "synthetic": true,
+  "enumerated": 256,
+  "feasible_count": 240,
+  "best_chromosome": [
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "best_feasible": true,
+  "best_cost_yuan": 138077847.64657784
+}

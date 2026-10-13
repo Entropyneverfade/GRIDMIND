@@ -89,6 +89,52 @@ def show_ga_window(result_dir):
     window.mainloop()
 
 
+def show_dp_window(result_dir):
+    """读取阶段归档并展示年度费用和累计投运状态。"""
+    import tkinter as tk
+    from tkinter import ttk
+    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+    from matplotlib.figure import Figure
+    import matplotlib
+
+    matplotlib.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimSun", "DejaVu Sans"]
+    matplotlib.rcParams["axes.unicode_minus"] = False
+    with (Path(result_dir) / "tables" / "dynamic_stages.csv").open(
+            encoding="utf-8-sig", newline="") as stream:
+        rows = list(csv.DictReader(stream))
+    years = [int(row["规划年"]) for row in rows]
+    annual = [float(row["年度费用元"]) / 1e8 for row in rows]
+    discounted = [float(row["折现费用元"]) / 1e8 for row in rows]
+    states = [int(row["累计状态整数"]) for row in rows]
+    window = tk.Tk()
+    window.title("GRIDMIND · 动态规划阶段结果")
+    window.geometry("1050x700")
+    figure = Figure(figsize=(10, 6), dpi=100)
+    top, bottom = figure.subplots(2, 1, gridspec_kw={"hspace": 0.32})
+    top.plot(years, annual, "o-", color="#1D3557", linewidth=2, label="年度费用")
+    top.plot(years, discounted, "s--", color="#D96C2B", linewidth=1.5, label="折现费用")
+    top.set_ylabel("费用 / 亿元")
+    top.legend()
+    bottom.step(years, states, where="post", color="#237A57", linewidth=2)
+    bottom.scatter(years, states, color="#237A57")
+    bottom.set_ylabel("累计投运状态")
+    bottom.set_xlabel("规划年份")
+    for axis in (top, bottom):
+        axis.set_xlim(min(years) - 0.1, max(years) + 0.1)
+        axis.set_xticks(years)
+        axis.grid(alpha=0.2)
+        axis.tick_params(direction="in", which="both")
+    figure.suptitle("动态规划年度建设与费用", fontsize=14)
+    figure.subplots_adjust(left=0.12, right=0.97, top=0.89, bottom=0.11)
+    canvas = FigureCanvasTkAgg(figure, master=window)
+    canvas.get_tk_widget().pack(fill="both", expand=True)
+    toolbar = NavigationToolbar2Tk(canvas, window, pack_toolbar=False)
+    toolbar.update()
+    toolbar.pack(fill="x")
+    ttk.Label(window, text=f"存档：{result_dir}", padding=6).pack(fill="x")
+    window.mainloop()
+
+
 def launch_app(smoke=False):
     """主窗口通过后台线程计算，Tk只负责文件选择、进度和查看结果。"""
     import tkinter as tk
@@ -123,6 +169,8 @@ def launch_app(smoke=False):
     population = tk.StringVar(value="12")
     generations = tk.StringVar(value="12")
     seed = tk.StringVar(value="1")
+    algorithm = tk.StringVar(value="遗传算法")
+    previous_factor = tk.StringVar(value="0.95")
     figures = tk.BooleanVar(value=True)
     status = tk.StringVar(value="请选择项目数据库，然后开始计算")
     last_result = {"path": None}
@@ -153,8 +201,17 @@ def launch_app(smoke=False):
         ttk.Label(options, text=label).pack(side="left")
         ttk.Entry(options, textvariable=var, width=7).pack(side="left", padx=(5, 17))
     ttk.Checkbutton(options, text="生成Origin图件", variable=figures).pack(side="left", padx=6)
+    # 动态规划使用同一目标年库推导前一年负荷情景；系数由用户明确输入。
+    method_options = ttk.Frame(frame)
+    method_options.grid(row=5, column=0, columnspan=3, sticky="w", pady=(0, 8))
+    ttk.Label(method_options, text="规划方法").pack(side="left")
+    ttk.Combobox(method_options, textvariable=algorithm,
+                 values=("遗传算法", "动态规划（双年度）"), state="readonly",
+                 width=20).pack(side="left", padx=(5, 20))
+    ttk.Label(method_options, text="动态规划前一年负荷系数").pack(side="left")
+    ttk.Entry(method_options, textvariable=previous_factor, width=7).pack(side="left", padx=5)
     controls = ttk.Frame(frame)
-    controls.grid(row=5, column=0, columnspan=3, sticky="w", pady=(8, 14))
+    controls.grid(row=6, column=0, columnspan=3, sticky="w", pady=(8, 14))
 
     def run(plan):
         """验证路径与代数；计算线程写队列，不直接操作Tk控件。"""
@@ -163,8 +220,11 @@ def launch_app(smoke=False):
             if not src.is_dir() or not cost.is_file():
                 raise ValueError("项目数据库文件夹或经济参数CSV不存在")
             y, pop, gen, random_seed = int(year.get()), int(population.get()), int(generations.get()), int(seed.get())
+            factor = float(previous_factor.get())
             if pop < 2 or gen < 1:
                 raise ValueError("种群至少2个、最大代数至少1代")
+            if plan and algorithm.get().startswith("动态") and not 0 < factor <= 1:
+                raise ValueError("动态规划前一年负荷系数必须在(0,1]内")
         except ValueError as error:
             messagebox.showerror("输入错误", str(error), parent=root)
             return
@@ -176,19 +236,21 @@ def launch_app(smoke=False):
         status.set("正在读取数据…")
 
         make_figures = bool(figures.get())  # Tk变量只在主线程取值。
+        method = "dp" if algorithm.get().startswith("动态") else "ga"
 
         def worker():
             """后台执行GA和全年模拟；Origin也仅在后台独立进程中运行。"""
             try:
                 _, result, simulation, folder = execute(src, y, cost, destination,
                     plan=plan, figures=make_figures, population=pop, generations=gen,
-                    seed=random_seed, progress=lambda message: messages.put(("status", message)))
+                    seed=random_seed, progress=lambda message: messages.put(("status", message)),
+                    algorithm=method, previous_load_factor=factor)
                 messages.put(("done", (folder, result, simulation.summary)))
             except Exception as error:
                 messages.put(("error", str(error)))
         threading.Thread(target=worker, daemon=True).start()
 
-    start_plan = ttk.Button(controls, text="运行遗传规划与全年模拟", command=lambda: run(True))
+    start_plan = ttk.Button(controls, text="运行所选规划与全年模拟", command=lambda: run(True))
     start_plan.pack(side="left", padx=(0, 10))
     start_sim = ttk.Button(controls, text="仅模拟基年存量", command=lambda: run(False))
     start_sim.pack(side="left")
@@ -201,10 +263,12 @@ def launch_app(smoke=False):
             subprocess.Popen(args)
 
     def open_ga():
-        """查看遗传收敛和种群状态；只模拟的存档不含GA历史。"""
+        """按存档类型选择遗传收敛图或动态规划年度图。"""
         if last_result["path"]:
-            args = ([sys.executable, "--ga", str(last_result["path"])] if getattr(sys, "frozen", False) else
-                    [sys.executable, str(Path(__file__).resolve()), "--ga", str(last_result["path"])])
+            flag = ("--dp" if (Path(last_result["path"]) / "tables" /
+                                "dynamic_stages.csv").is_file() else "--ga")
+            args = ([sys.executable, flag, str(last_result["path"])] if getattr(sys, "frozen", False) else
+                    [sys.executable, str(Path(__file__).resolve()), flag, str(last_result["path"])])
             subprocess.Popen(args)
 
     def open_folder():
@@ -224,24 +288,25 @@ def launch_app(smoke=False):
         last_result["path"] = folder
         view_button.configure(state="normal")
         folder_button.configure(state="normal")
-        ga_button.configure(state="normal" if (folder / "tables" / "history.csv").is_file() else "disabled")
+        ga_button.configure(state="normal" if ((folder / "tables" / "history.csv").is_file() or
+                                           (folder / "tables" / "dynamic_stages.csv").is_file()) else "disabled")
         status.set("已载入存档：" + str(folder))
 
     result_tools = ttk.Frame(frame)
-    result_tools.grid(row=6, column=0, columnspan=3, sticky="w", pady=(0, 13))
+    result_tools.grid(row=7, column=0, columnspan=3, sticky="w", pady=(0, 13))
     view_button = ttk.Button(result_tools, text="查看8760小时运行图", command=open_viewer, state="disabled")
     view_button.pack(side="left", padx=(0, 10))
-    ga_button = ttk.Button(result_tools, text="查看遗传规划图", command=open_ga, state="disabled")
+    ga_button = ttk.Button(result_tools, text="查看规划图", command=open_ga, state="disabled")
     ga_button.pack(side="left", padx=(0, 10))
     folder_button = ttk.Button(result_tools, text="打开结果存档", command=open_folder, state="disabled")
     folder_button.pack(side="left")
     ttk.Button(result_tools, text="载入已有存档", command=load_saved).pack(side="left", padx=(10, 0))
     ttk.Label(frame, textvariable=status, foreground="#235777").grid(
-        row=7, column=0, columnspan=3, sticky="w", pady=5)
+        row=8, column=0, columnspan=3, sticky="w", pady=5)
     log = tk.Text(frame, height=15, state="disabled", wrap="word", font=("Microsoft YaHei UI", 9))
-    log.grid(row=8, column=0, columnspan=3, sticky="nsew")
+    log.grid(row=9, column=0, columnspan=3, sticky="nsew")
     frame.columnconfigure(1, weight=1)
-    frame.rowconfigure(8, weight=1)
+    frame.rowconfigure(9, weight=1)
 
     def poll():
         """定时取后台消息；完成后开启查看与存档按钮。"""
@@ -261,7 +326,8 @@ def launch_app(smoke=False):
                     start_sim.configure(state="normal")
                     view_button.configure(state="normal")
                     folder_button.configure(state="normal")
-                    ga_button.configure(state="normal" if result else "disabled")
+                    ga_button.configure(state="normal" if ((Path(folder) / "tables" / "history.csv").is_file() or
+                                                       (Path(folder) / "tables" / "dynamic_stages.csv").is_file()) else "disabled")
                     status.set(f"完成 · 缺供 {summary['unserved']:.3f} MWh · {folder}")
                 else:
                     start_plan.configure(state="normal")
@@ -285,7 +351,14 @@ def main():
     """EXE自身既是主窗口，也可启动独立运行图和遗传图窗口。"""
     parser = argparse.ArgumentParser(description="GRIDMIND桌面应用")
     parser.add_argument("--viewer", type=Path)
+    parser.add_argument("--export-demo-views", nargs=2, type=Path,
+                        metavar=("RESULT_DIR", "IMAGE_DIR"),
+                        help="用同一窗口绘图函数导出日、周、月、年和自定义时段PNG")
+    parser.add_argument("--export-monthly-views", nargs=2, type=Path,
+                        metavar=("RESULT_DIR", "IMAGE_DIR"),
+                        help="导出12张自然月图和标志时段事件CSV")
     parser.add_argument("--ga", type=Path)
+    parser.add_argument("--dp", type=Path)
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--pdf-fallback", nargs=2, metavar=("PNG", "PDF"), help=argparse.SUPPRESS)
     parser.add_argument("--batch-source", type=Path, help="后台批处理使用的兼容项目数据库目录")
@@ -294,6 +367,11 @@ def main():
     parser.add_argument("--batch-year", type=int, default=2029)
     parser.add_argument("--batch-simulate-only", action="store_true")
     parser.add_argument("--batch-skip-figures", action="store_true")
+    parser.add_argument("--batch-algorithm", choices=("ga", "dp"), default="ga")
+    parser.add_argument("--batch-previous-load-factor", type=float, default=0.95)
+    parser.add_argument("--batch-synthetic-dynamic", type=Path,
+                        help="用EXE复现公开合成双年度GA/DP对比案例")
+    parser.add_argument("--gurobi-check", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.pdf_fallback:
         # Origin对高密度年度矢量PDF导出失败时，用其原生600dpi PNG封装PDF。
@@ -302,6 +380,33 @@ def main():
         png, pdf = map(Path, args.pdf_fallback)
         with Image.open(png) as picture:
             picture.convert("RGB").save(pdf, "PDF", resolution=600)
+    elif args.gurobi_check:
+        # 快速验证冻结包能载入求解器；无需先评价512个年度状态。
+        try:
+            from power_ga.dynamic_planning.solver import _gurobi_path
+            from types import SimpleNamespace
+            table = {0: SimpleNamespace(feasible=True, total_cost_yuan=2.0),
+                     1: SimpleNamespace(feasible=True, total_cost_yuan=1.0)}
+            path, objective = _gurobi_path((table, table), 0.07, 1)
+            if path != (1, 1) or abs(objective - (1 + 1 / 1.07)) > 1e-6:
+                raise AssertionError("冻结求解器已载入，但最小状态路径不正确")
+        except Exception:
+            import traceback
+            user_folder().mkdir(parents=True, exist_ok=True)
+            (user_folder() / "gurobi_check_error.txt").write_text(
+                traceback.format_exc(), encoding="utf-8")
+            raise SystemExit(1)
+    elif args.batch_synthetic_dynamic:
+        # 固定合成输入只用于EXE端到端演示；与用户项目库隔离。
+        try:
+            from examples.synthetic_dynamic_case import execute as run_synthetic_dynamic
+            run_synthetic_dynamic(args.batch_synthetic_dynamic)
+        except Exception:
+            import traceback
+            args.batch_synthetic_dynamic.mkdir(parents=True, exist_ok=True)
+            (args.batch_synthetic_dynamic / "batch_error.txt").write_text(
+                traceback.format_exc(), encoding="utf-8")
+            raise SystemExit(1)
     elif args.batch_source:
         # 同一EXE的后台入口用于无人值守复核；计算仍走前后端共享的execute。
         # 失败写入本次结果目录并返回非零状态，不弹出PyInstaller错误窗口。
@@ -312,11 +417,25 @@ def main():
             execute(args.batch_source, args.batch_year,
                     args.batch_costs or prepare_cost_file(), output,
                     plan=not args.batch_simulate_only,
-                    figures=not args.batch_skip_figures)
+                    figures=not args.batch_skip_figures,
+                    algorithm=args.batch_algorithm,
+                    previous_load_factor=args.batch_previous_load_factor)
         except Exception as error:
             output.mkdir(parents=True, exist_ok=True)
             (output / "batch_error.txt").write_text(str(error), encoding="utf-8")
             raise SystemExit(1)
+    elif args.export_monthly_views:
+        # 月图与交互窗口共用绘制和事件选取，输出表按相同小时边界存档。
+        from power_ga.result_output.viewer import export_monthly_views, load_hours
+
+        result_dir, image_dir = args.export_monthly_views
+        export_monthly_views(load_hours(result_dir), image_dir)
+    elif args.export_demo_views:
+        # 接受任意完整8760小时结果；公开演示仅选用单独生成的合成算例。
+        from power_ga.result_output.viewer import export_predefined_views, load_hours
+
+        result_dir, image_dir = args.export_demo_views
+        export_predefined_views(load_hours(result_dir), image_dir)
     elif args.viewer:
         from power_ga.result_output.viewer import launch, load_hours
         import matplotlib
@@ -325,6 +444,8 @@ def main():
         launch(load_hours(args.viewer))
     elif args.ga:
         show_ga_window(args.ga)
+    elif args.dp:
+        show_dp_window(args.dp)
     else:
         launch_app(args.smoke_test)
 

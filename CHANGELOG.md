@@ -1,5 +1,21 @@
 # Development progress / 开发进度
 
+## 2026-10-14 — Stage 0.2.0 / 完整合成遗传规划与双年度动态规划
+
+- Added a complete eight-candidate GA case with 8,760-hour operation, one consolidated workbook, native static figures and exhaustive 256-plan verification. / 增加八候选位遗传规划完整合成算例、全年表图及256方案穷举校验。
+- Added a two-year Bellman state recursion, an independently optimized Gurobi state model, and a same-cost-table GA comparison. / 增加双年度Bellman递推、Gurobi独立核验与同费用表GA对比。
+- Added twelve natural-month dispatch charts with event markers. The zero-shortage case uses actual peak net-load days rather than claiming shortage events. / 增加12张自然月图及真实事件标志；无缺口时标净负荷峰值日。
+- The desktop source now offers GA/DP selection, a DP stage visualization and archived stage workbook. / 桌面源码增加算法切换、DP阶段图与阶段工作簿。
+- Added a complete bilingual case report, user guide, roadmap and DP mathematical derivation. / 增加中英双语案例、说明书、开发计划与动态规划推导。
+
+## 2026-10-14 — Stage 0.1.6 / 八类合成缩放演示与推导
+
+- The Windows EXE now exports predefined day, week, month, year and arbitrary-hour PNGs through the interactive viewer's own range and drawing functions. / 单文件EXE通过交互窗口同一范围及绘图函数导出日、周、月、年和自定义时段图。
+- Replaced the two-panel viewer with one full-height dispatch stack: storage charging stays below zero, delivered wind/PV are solid, matching-color curtailment is diagonally hatched, and the magenta load line is thicker. / 窗口改为单张堆叠图，储能充电在零线下，正常风光纯色，弃电同色斜线，负荷线加粗。
+- Added a seed-reproducible synthetic 8,760-hour example containing coal, gas, conventional hydro, biomass, pumped storage, battery, wind and PV; load and weather have independent variability. / 加入负荷与风光均有固定种子扰动的八类机组合成算例。
+- Added a detailed bilingual derivation appendix and five EXE-generated synthetic preview PNGs. No external project input or output is used in the gallery. / 加入中英双语详细推导及五张由EXE导出的合成示意图。
+- Input validation now rejects out-of-range per-unit curves, duplicate cost technologies and invalid storage charge ratios. Twenty-three synthetic tests pass; the synthetic 8,760-hour example has a maximum balance residual below `3e-14 MW`. / 输入校验更严格；23项合成测试通过，合成全年最大平衡残差低于`3e-14 MW`。
+
 ## 2026-10-14 — Stage 0.1.5 / 闰年8760小时口径
 
 - Unified hydro budgets, monthly tables and the viewer on one 365-day planning calendar. Leap-year curves must omit February 29 and pass daily-label checks. / 水电预算、逐月表和窗口统一使用365日规划年；闰年曲线需省略2月29日并通过日期校核。

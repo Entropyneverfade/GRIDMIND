@@ -29,8 +29,8 @@ COLORS = {
 
 # 求解器小于1e-6MW的残差保留在原始表中，图中不建立误导性的“缺供”图例。
 DISPLAY_POWER_TOL_MW = 1e-6
-# Origin原生填充索引19已在导出的弃电窗口图中目视确认为点阵纹理。
-CURTAILMENT_DOT_PATTERN = 19
+# 常规风光为纯色；Origin填充索引6用于对应颜色的弃电斜线纹理。
+CURTAILMENT_HATCH_PATTERN = 6
 
 
 
@@ -183,12 +183,12 @@ def plot_dispatch(hourly, first: int, duration: int, root: Path, dirname: str, c
     lower = [0.0] * n
     bands = [("thermal", "火电发电", [h.thermal_mw for h in window], COLORS["thermal"], 0),
              ("discharge", "储能放电", [h.storage_discharge_mw for h in window], COLORS["storage"], 0),
-             ("solar", "光伏发电", [h.solar_mw for h in window], COLORS["solar"], 6),
-             ("wind", "风电发电", [h.wind_mw for h in window], COLORS["wind"], 6),
+             ("solar", "光伏发电", [h.solar_mw for h in window], COLORS["solar"], 0),
+             ("wind", "风电发电", [h.wind_mw for h in window], COLORS["wind"], 0),
              ("unserved", "缺供功率", [h.unserved_mw for h in window], COLORS["unserved"], 9),
-             # 弃电与所属电源同色；点阵纹理与实际发电的斜线纹理区分。
-             ("solar_curt", "光伏弃电", [h.solar_curtailment_mw for h in window], COLORS["solar"], CURTAILMENT_DOT_PATTERN),
-             ("wind_curt", "风电弃电", [h.wind_curtailment_mw for h in window], COLORS["wind"], CURTAILMENT_DOT_PATTERN)]
+             # 弃电与所属电源同色；斜线纹理与纯色实际发电区分。
+             ("solar_curt", "光伏弃电", [h.solar_curtailment_mw for h in window], COLORS["solar"], CURTAILMENT_HATCH_PATTERN),
+             ("wind_curt", "风电弃电", [h.wind_curtailment_mw for h in window], COLORS["wind"], CURTAILMENT_HATCH_PATTERN)]
     for key, label, values, color, pattern in bands:
         upper = [base + value for base, value in zip(lower, values)]
         if max(values) > DISPLAY_POWER_TOL_MW:  # 小于显示容差的浮点残差仍留在逐时表。
@@ -199,7 +199,7 @@ def plot_dispatch(hourly, first: int, duration: int, root: Path, dirname: str, c
         lower = upper
     columns["load"] = _step([h.load_mw for h in window])
     plots.append({"column": len(columns), "label": "原始负荷", "color": COLORS["load"],
-                  "fill": False, "pattern": 0, "width": 1.1, "end_row": 2 * n})
+                  "fill": False, "pattern": 0, "width": 2.0, "end_row": 2 * n})
     ymax = math.ceil(max(lower) / 20) * 20
     ymin = -math.ceil(max(charge_values) / 20) * 20
     # 全年图只稀疏标注轴标签，但所有8760个小时均进入Origin原生工作表。
@@ -271,7 +271,7 @@ def plot_results(result, simulation, output_dir: Path, problem=None):
 
 
 def plot_project_dispatch(hourly, first, count, folder: Path, year: int):
-    """八类机组同图堆叠；抽蓄/电池充电在负向，弃风光使用本色点阵。"""
+    """八类机组同图堆叠；抽蓄/电池充电在负向，弃风光使用本色斜线。"""
     window = hourly[first:first + count]
     n = len(window)
     x = [value for i in range(n) for value in (i, i + 1)]
@@ -289,10 +289,10 @@ def plot_project_dispatch(hourly, first, count, folder: Path, year: int):
              ("hydro_mw", "常规水电", "#22B8D6", 0),
              ("pumped_discharge_mw", "抽蓄放电", "#154AAB", 0),
              ("battery_discharge_mw", "新型储能放电", "#526CFF", 0),
-             ("solar_mw", "光伏", COLORS["solar"], 6),
-             ("wind_mw", "风电", COLORS["wind"], 6),
-             ("solar_curtailment_mw", "弃光", COLORS["solar"], CURTAILMENT_DOT_PATTERN),
-             ("wind_curtailment_mw", "弃风", COLORS["wind"], CURTAILMENT_DOT_PATTERN))
+             ("solar_mw", "光伏", COLORS["solar"], 0),
+             ("wind_mw", "风电", COLORS["wind"], 0),
+             ("solar_curtailment_mw", "弃光", COLORS["solar"], CURTAILMENT_HATCH_PATTERN),
+             ("wind_curtailment_mw", "弃风", COLORS["wind"], CURTAILMENT_HATCH_PATTERN))
     lower = [0.0] * n
     for field, label, color, pattern in bands:
         values = [getattr(h, field) for h in window]
@@ -305,7 +305,7 @@ def plot_project_dispatch(hourly, first, count, folder: Path, year: int):
         lower = upper
     columns["load"] = _step([h.load_mw for h in window])
     plots.append({"column": len(columns), "label": "负荷+外送", "color": COLORS["load"],
-                  "fill": False, "pattern": 0, "width": 1.1, "end_row": 2 * n})
+                  "fill": False, "pattern": 0, "width": 2.0, "end_row": 2 * n})
     high = max(max(lower), max(h.load_mw for h in window), 1.0)
     unit = 10 ** math.floor(math.log10(high / 5))
     step = max(unit, math.ceil(high / 5 / unit) * unit)
@@ -319,7 +319,7 @@ def plot_project_dispatch(hourly, first, count, folder: Path, year: int):
                         [0, n // 4, n // 2, n * 3 // 4, n]),
             "y_ticks": [ymin + i * step for i in range(int(round((ymax - ymin) / step)) + 1)],
             "zero_once": ymin == 0,
-            "caption": "真实项目曲线；外送作为固定需求；弃电同电源颜色并以点阵标识"}
+            "caption": "运行结果；外送作为固定需求；弃电同电源颜色并以斜线标识"}
     _render(folder, columns, plots, spec,
             ([h.hour, h.domestic_load_mw, h.export_mw, h.load_mw, h.coal_mw,
               h.gas_mw, h.hydro_mw, h.biomass_mw, h.wind_mw, h.solar_mw,
@@ -330,7 +330,7 @@ def plot_project_dispatch(hourly, first, count, folder: Path, year: int):
 
 
 def plot_project_results(case, result, simulation, output_dir: Path):
-    """真实项目静态交付包含GA三图、峰荷日和全年8760小时图。"""
+    """项目静态交付包含GA三图、峰荷日和全年8760小时图。"""
     root = output_dir / "figures"
     if result is not None and result.history:
         plot_convergence(result, root)
@@ -341,3 +341,30 @@ def plot_project_results(case, result, simulation, output_dir: Path):
     first = peak // 24 * 24
     plot_project_dispatch(hourly, first, 24, root / "02_峰荷日电力平衡", case.target_year)
     plot_project_dispatch(hourly, 0, 8760, root / "05_全年8760电力平衡", case.target_year)
+
+
+def plot_dynamic_stage_costs(years, annual_yuan, discounted_yuan, root: Path):
+    """Origin原生绘制DP阶段费用；每张图保留独立工程、数据、脚本和QA。"""
+    if len(years) < 2 or not (len(years) == len(annual_yuan) == len(discounted_yuan)):
+        raise ValueError("动态规划阶段图至少需要两个同长度年度序列")
+    folder = root / "01_动态规划阶段费用"
+    annual = [value / 1e6 for value in annual_yuan]
+    discounted = [value / 1e6 for value in discounted_yuan]
+    ymax = math.ceil(max(annual + discounted) / 40) * 40
+    spec = {"name": "dp_stage_cost", "title": "动态规划阶段费用与贴现值",
+            "x_label": r"\f:SimSun(规划年份)",
+            "y_label": r"\f:SimSun(费用) / \f:SimSun(百万元)",
+            "x_min": min(years), "x_max": max(years), "y_min": 0, "y_max": ymax,
+            "x_ticks": list(years), "y_ticks": list(range(0, ymax + 1, 40)),
+            "zero_once": False,
+            "caption": "公开合成双年度案例；年化项目费+8760小时运行费；第二年按7%贴现"}
+    plots = [
+        {"column": 2, "label": "年度费用", "color": "#1D3557",
+         "fill": False, "pattern": 0, "width": 2.5},
+        {"column": 3, "label": "折现费用", "color": "#D96C2B",
+         "fill": False, "pattern": 0, "width": 2.2},
+    ]
+    _render(folder, {"year": list(years), "annual": annual,
+                     "discounted": discounted}, plots, spec,
+            zip(years, annual_yuan, discounted_yuan),
+            ["规划年", "阶段年度费用元", "阶段折现费用元"])

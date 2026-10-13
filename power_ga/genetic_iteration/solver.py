@@ -61,11 +61,21 @@ def _mutate(chromosome: Chromosome, rng: random.Random, rate: float) -> Chromoso
     return tuple(1 - bit if rng.random() < rate else bit for bit in chromosome)
 
 
-def optimize(problem: Problem, settings: GASettings, evaluator=None, progress=None) -> GAResult:
+def optimize(problem: Problem, settings: GASettings, evaluator=None, progress=None,
+             seed_population=None) -> GAResult:
     """从Gen=0迭代；可注入真实算例评价函数，遗传算子保持一致。"""
     evaluator = evaluator or evaluate
     rng = random.Random(settings.seed)
     population = generate_gen0(problem, settings.population_size, rng)
+    if seed_population:
+        # 多阶段编码可以把有物理意义的候选建设年方案放入Gen=0。
+        # 校验后替换随机尾部，保留全不建与全建两个基准方案。
+        seeds = [tuple(bits) for bits in seed_population]
+        if any(len(bits) != len(problem.candidates) or
+               any(bit not in (0, 1) for bit in bits) for bits in seeds):
+            raise ValueError("Gen=0种子染色体长度或取值错误")
+        for index, bits in enumerate(seeds[:max(0, settings.population_size - 2)], 2):
+            population[index] = bits
     # 同一确定性方案结果不变，缓存避免重复执行8760小时运行模拟。
     cache: Dict[Chromosome, Evaluation] = {}
     history = []

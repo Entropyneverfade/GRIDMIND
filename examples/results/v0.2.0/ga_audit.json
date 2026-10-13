@@ -1,0 +1,23 @@
+{
+  "synthetic": true,
+  "candidate_bits": 8,
+  "selected_chromosome": [
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "feasible": true,
+  "stop_reason": "连续若干代无改进",
+  "generations_recorded": 8,
+  "unique_evaluations": 94,
+  "total_cost_yuan": 138077847.64657784,
+  "unserved_mwh": 0.0,
+  "online_reserve_shortfall_mwh": 0.0,
+  "max_balance_residual_mw": 2.842170943040401e-14,
+  "storage_asset_hours": 17520
+}

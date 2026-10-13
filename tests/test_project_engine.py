@@ -9,7 +9,8 @@ from tempfile import TemporaryDirectory
 from openpyxl import Workbook, load_workbook
 
 from power_ga.common.domain import GASettings, PLANNING_MONTH_HOURS
-from power_ga.data_collection.project_case import CasePlant, ProjectCase, _read_curve
+from power_ga.data_collection.project_case import (TECH_LABELS, CasePlant, ProjectCase,
+                                                    _make_plant, _read_curve, read_costs)
 from power_ga.genetic_iteration.project_solver import evaluate_project, optimize_project
 from power_ga.operation_simulation.project_engine import _hydro_target, _monthly_index, simulate_project
 from power_ga.result_output.project_report import write_project_report
@@ -147,6 +148,46 @@ class ProjectEngineTests(unittest.TestCase):
             book.save(path)
             book.close()
             self.assertEqual(len(_read_curve(year_folder, "synthetic", {})), 8760)
+
+    def test_cost_duplicate_and_curve_overrating_are_rejected(self):
+        """重复成本行不能静默覆盖；单位出力>1会突破额定MW，须拦截。"""
+        with TemporaryDirectory() as folder:
+            root = Path(folder)
+            csv_path = root / "cost.csv"
+            csv_path.write_text("technology,annual_capital_yuan_per_mw,variable_yuan_per_mwh\n" +
+                                "".join(f"{kind},100,10\n" for kind in TECH_LABELS) +
+                                "coal,999,999\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "重复技术"):
+                read_costs(csv_path)
+            year_folder = root / "2029"
+            curve_folder = year_folder / "CURVE"
+            curve_folder.mkdir(parents=True)
+            book = Workbook(write_only=True)
+            sheet = book.create_sheet()
+            sheet.append(["日期"] + list(range(1, 25)))
+            for day in range(365):
+                # 第1日第1小时1.2倍额定值，其余小时在合法单位值范围内。
+                sheet.append([f"day-{day + 1}"] +
+                             ([1.2] + [0.5] * 23 if day == 0 else [0.5] * 24))
+            book.save(curve_folder / "overrated.xlsx")
+            with self.assertRaisesRegex(ValueError, "0–1范围"):
+                _read_curve(year_folder, "overrated", {})
+
+    def test_storage_zero_charge_ratio_is_rejected(self):
+        """储能充电倍率0不得被默认值1替代，否则会凭空增加充电能力。"""
+        station = [None] * 16
+        station[1], station[4], station[7], station[8] = "SyntheticStorage", 385, 0, 0.81
+        unit = [None] * 9
+        unit[8] = 2  # 库容Emax=P额定×2h；充电倍率仍必须显式有效。
+        costs = {"battery": {"variable_yuan_per_mwh": "0",
+                             "annual_capital_yuan_per_mw": "100"}}
+        with self.assertRaisesRegex(ValueError, "充电功率倍率"):
+            _make_plant(1, (station, unit, 10), 10, Path("."), {}, costs, {}, False)
+        station[4] = 300  # 常规机组最小出力比例也必须落在[0,1]。
+        unit[7], unit[8] = 1.5, 0
+        costs["coal"] = costs["battery"]
+        with self.assertRaisesRegex(ValueError, "最小出力比例"):
+            _make_plant(2, (station, unit, 10), 10, Path("."), {}, costs, {}, False)
 
     def test_online_reserve_is_planning_feasibility_gate(self):
         """无缺供但仅余2MW备用、需3MW备用时，不能报告为可行规划。"""

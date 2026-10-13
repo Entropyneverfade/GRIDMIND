@@ -1,0 +1,9 @@
+technology,annual_capital_yuan_per_mw,variable_yuan_per_mwh,note
+coal,2800000,240,synthetic teaching assumption
+gas,1000000,470,synthetic teaching assumption
+hydro,5900000,30,synthetic teaching assumption
+pumped,1700000,8,synthetic teaching assumption
+battery,1400000,8,synthetic teaching assumption
+wind,1300000,0,synthetic teaching assumption
+solar,850000,0,synthetic teaching assumption
+biomass,4000000,180,synthetic teaching assumption

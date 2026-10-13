@@ -7,6 +7,5 @@ GRIDMIND_results/
 runs/
 output/
 output_gurobi/
-*.xlsx
 *.opju
 *.exe

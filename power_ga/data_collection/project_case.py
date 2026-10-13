@@ -93,16 +93,29 @@ def _read_curve(year_folder: Path, name: str, cache: dict):
                 raise ValueError(f"闰年曲线第{day}日应为{expected}，实际为{actual}：{path}")
             expected += timedelta(days=1)
     points = tuple(float(v) for row in rows for v in row[1:25])
-    if len(points) != 8760 or any(not math.isfinite(v) or v < 0 for v in points):
-        raise ValueError(f"曲线应为8760个非负有限值：{path}")
+    # 负荷、风光、联络线均按“额定MW×逐时单位值”解释；超出1会突破额定功率。
+    if len(points) != 8760 or any(not math.isfinite(v) or not 0 <= v <= 1 + 1e-9
+                                   for v in points):
+        raise ValueError(f"曲线应为8760个0–1范围内的有限单位值：{path}")
     cache[name] = points
     return points
 
 
 def read_costs(path: Path):
-    """核对8类技术费用；资本费已年化，避免在运行费用中再次计入。"""
+    """核对8类技术费用且拒绝重复行；资本费已年化，不在运行费中重计。"""
     with path.open(encoding="utf-8-sig", newline="") as stream:
-        data = {row["technology"]: row for row in csv.DictReader(stream)}
+        reader = csv.DictReader(stream)
+        required = {"technology", "annual_capital_yuan_per_mw", "variable_yuan_per_mwh"}
+        if not required.issubset(reader.fieldnames or []):
+            raise ValueError(f"成本参数缺少必要列：{sorted(required - set(reader.fieldnames or []))}")
+        data = {}
+        for line, row in enumerate(reader, 2):
+            key = (row["technology"] or "").strip()
+            if key not in TECH_LABELS:
+                raise ValueError(f"成本参数第{line}行技术类型未知：{key}")
+            if key in data:
+                raise ValueError(f"成本参数存在重复技术：{key}，第{line}行")
+            data[key] = row
     missing = set(TECH_LABELS) - set(data)
     if missing:
         raise ValueError(f"成本参数缺少技术：{sorted(missing)}")
@@ -161,13 +174,19 @@ def _make_plant(station_id, record, mw, year_folder, curves, costs, hydro_factor
     efficiency = float(station[8] or 0) if storage_hours else 1.0
     if not 0 < efficiency <= 1:
         raise ValueError(f"储能往返效率越界：{station[1]}")
+    charge_ratio = float(station[7]) if storage_hours and station[7] is not None else 1.0
+    if not math.isfinite(charge_ratio) or charge_ratio <= 0:
+        raise ValueError(f"储能充电功率倍率必须大于零：{station[1]}")
+    min_fraction = float(unit[7] or 0) if kind in {"coal", "gas", "biomass"} else 0.0
+    if not math.isfinite(min_fraction) or not 0 <= min_fraction <= 1:
+        raise ValueError(f"常规机组最小出力比例越界：{station[1]}")
     row = costs[kind]
     return CasePlant(station_id, str(station[1]), kind, mw,
-                     float(unit[7] or 0) if kind in {"coal", "gas", "biomass"} else 0.0,
+                     min_fraction,
                      float(row["variable_yuan_per_mwh"]),
                      mw * float(row["annual_capital_yuan_per_mw"]) if candidate else 0.0,
                      profile, storage_hours,
-                     float(station[7] or 1) if storage_hours else 1.0,
+                     charge_ratio,
                      efficiency, hydro_factors.get(station_id, (1.0,) * 12))
 
 

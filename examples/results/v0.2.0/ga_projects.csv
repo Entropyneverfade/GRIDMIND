@@ -1,0 +1,17 @@
+﻿类别,电站ID,电站,技术,容量MW,入选,年化资本费元
+存量,1,Synthetic coal,煤电,55,1,0.0
+存量,2,Synthetic gas,燃气,40,1,0.0
+存量,3,Synthetic hydro,常规水电,18,1,0.0
+存量,4,Synthetic biomass,生物质,10,1,0.0
+存量,5,Synthetic pumped,抽水蓄能,12,1,0.0
+存量,6,Synthetic battery,新型储能,10,1,0.0
+存量,7,Synthetic wind,风电,28,1,0.0
+存量,8,Synthetic PV,光伏,55,1,0.0
+候选,101,Candidate coal,煤电,20,0,56000000.0
+候选,102,Candidate gas,燃气,15,1,15000000.0
+候选,103,Candidate hydro,常规水电,10,0,59000000.0
+候选,104,Candidate biomass,生物质,8,0,32000000.0
+候选,105,Candidate pumped,抽水蓄能,10,0,17000000.0
+候选,106,Candidate battery,新型储能,10,0,14000000.0
+候选,107,Candidate wind,风电,20,0,26000000.0
+候选,108,Candidate PV,光伏,20,0,17000000.0

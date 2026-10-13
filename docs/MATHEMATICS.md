@@ -2,6 +2,8 @@
 
 这里给出当前程序实际执行的关系，符号均按单区域、1 小时步长定义。These equations describe the implemented deterministic single-region model at a one-hour time step.
 
+逐项推导、合成手算、遗传算子和守恒校验见 [推导附录 / Detailed derivation](MATHEMATICS_APPENDIX.md)。
+
 ## 0. 8760小时规划年 / Planning-year time base
 
 全年固定为365日×24小时，月小时数为 \((744,672,744,720,744,720,744,744,720,744,720,744)\)，总和8760。闰年兼容曲线省略2月29日，导入时核对日期标签；水电月预算、逐月汇总和交互窗口共用这一边界。The model uses a 365-day planning year even when the input year is a leap year: February 29 is omitted and daily labels are checked. This is an input convention, not a simulation of the omitted calendar day.
@@ -80,3 +82,13 @@ For this baseline, \(F\) counts coal, gas, conventional hydro and biomass rated 
 ## 7. 边界 / Limitations
 
 逐日开机与逐时经济顺序是规则近似；外送目前作为固定逐时需求，内部线路潮流未求解。The optional separate rolling optimization module is a finite-window model and must not be described as an annual global optimum. All cost parameters and hydrology utilization assumptions require local calibration before decision use.
+
+## 8. 年度动态规划 / Annual dynamic programming
+
+候选投运状态 \(s_t\) 只能按位从 0 转为 1；每一状态由同一8760小时运行引擎算出阶段年费用 \(c_t(s)\)。贴现后顺序递推为
+
+\[
+F_t(s)=\frac{c_t(s)}{(1+r)^{t-1}}+\min_{p\subseteq s}F_{t-1}(p).
+\]
+
+Gurobi 用每年一个可行状态的0/1模型独立校验递推最优值。The state cost includes annualized candidate cost and actual hourly variable cost; physical feasibility is enforced before a state enters the recursion. See the [complete derivation](MATHEMATICS_APPENDIX.md#12-多年度动态规划--multi-year-dynamic-programming) and [synthetic comparison](CASE_STUDY.md).
