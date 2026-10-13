@@ -343,7 +343,8 @@ def plot_project_results(case, result, simulation, output_dir: Path):
     plot_project_dispatch(hourly, 0, 8760, root / "05_全年8760电力平衡", case.target_year)
 
 
-def plot_dynamic_stage_costs(years, annual_yuan, discounted_yuan, root: Path):
+def plot_dynamic_stage_costs(years, annual_yuan, discounted_yuan, root: Path,
+                             discount_rate=0.07):
     """Origin原生绘制DP阶段费用；每张图保留独立工程、数据、脚本和QA。"""
     if len(years) < 2 or not (len(years) == len(annual_yuan) == len(discounted_yuan)):
         raise ValueError("动态规划阶段图至少需要两个同长度年度序列")
@@ -357,7 +358,9 @@ def plot_dynamic_stage_costs(years, annual_yuan, discounted_yuan, root: Path):
             "x_min": min(years), "x_max": max(years), "y_min": 0, "y_max": ymax,
             "x_ticks": list(years), "y_ticks": list(range(0, ymax + 1, 40)),
             "zero_once": False,
-            "caption": "公开合成双年度案例；年化项目费+8760小时运行费；第二年按7%贴现"}
+            # 图注按实际阶段数和贴现率生成，避免三年度图仍写成“双年度”。
+            "caption": (f"公开合成{len(years)}年度案例；年化项目费+8760小时运行费；"
+                        f"逐年按{discount_rate:.2%}贴现")}
     plots = [
         {"column": 2, "label": "年度费用", "color": "#1D3557",
          "fill": False, "pattern": 0, "width": 2.5},

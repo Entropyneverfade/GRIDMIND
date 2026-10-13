@@ -1,4 +1,4 @@
-"""公开合成两年度规划：同一阶段费用表比较遗传算法与动态规划。"""
+"""公开合成多年度规划：同一阶段费用表比较遗传算法与动态规划。"""
 
 import argparse
 import csv
@@ -16,14 +16,19 @@ from power_ga.result_output.project_report import write_project_report
 from power_ga.result_output.origin_plot import plot_dynamic_stage_costs
 
 
-def build_stages():
-    """同一八类资源和气象曲线，首年负荷缩至82%，次年恢复原曲线。"""
+def build_stages(full_horizon=False):
+    """构造连续规划年；三年选项在末年增加8%合成负荷作压力检验。"""
     case = build_case(with_candidates=True)
-    # 这两个年份是公开教学情景，并非任何地区的年度预测或历史序列。
+    # 各年份是公开教学情景，并非任何地区的年度预测或历史序列。
     first = replace(case, target_year=2026,
                     domestic_load_mw=tuple(0.82 * value for value in case.domestic_load_mw))
     second = replace(case, target_year=2027)
-    return first, second
+    if not full_horizon:
+        return first, second
+    # 三年复用同一合成气象，实现同状态费用可比；只改变声明过的年度负荷。
+    third = replace(case, target_year=2028,
+                    domestic_load_mw=tuple(1.08 * value for value in case.domestic_load_mw))
+    return first, second, third
 
 
 def _write_csv(path, header, rows):
@@ -34,9 +39,10 @@ def _write_csv(path, header, rows):
         writer.writerows(rows)
 
 
-def execute(destination: Path, discount_rate=0.07, origin_figures=False):
+def execute(destination: Path, discount_rate=0.07, origin_figures=False,
+            full_horizon=False):
     """DP/Gurobi求阶段最优，再在同一状态费用表上执行PPT风格GA。"""
-    cases = build_stages()
+    cases = build_stages(full_horizon=full_horizon)
     destination = Path(destination)
     tables_dir = destination / "tables"
     tables_dir.mkdir(parents=True, exist_ok=True)
@@ -44,7 +50,7 @@ def execute(destination: Path, discount_rate=0.07, origin_figures=False):
     ga_settings = GASettings(64, 80, 12, 20, 2, 0.85, 0.045, 19)
     ga, ga_path = compare_ga_on_stages(cases, dp.evaluations, discount_rate, ga_settings)
     if not ga.best.feasible:
-        raise AssertionError("合成两年度GA未找到可行方案")
+        raise AssertionError("合成多年度GA未找到可行方案")
     # 同一状态费用表是同口径比较的关键：气象、负荷、运行算法和成本完全一致。
     gap = (ga.best.total_cost_yuan - dp.objective_yuan) / dp.objective_yuan
     if gap < -1e-8:
@@ -68,7 +74,7 @@ def execute(destination: Path, discount_rate=0.07, origin_figures=False):
         plot_dynamic_stage_costs([row[0] for row in stage_rows],
                                  [row[3] for row in stage_rows],
                                  [row[4] for row in stage_rows],
-                                 destination / "figures")
+                                 destination / "figures", discount_rate)
     cost_rows = ((case.target_year, state, int(item.feasible),
                   item.annual_fixed_cost_yuan, item.variable_cost_yuan,
                   item.total_cost_yuan, item.unserved_mwh,
@@ -110,17 +116,21 @@ def execute(destination: Path, discount_rate=0.07, origin_figures=False):
                               .replace("e", "", 1).replace("+", "", 1).isdigit() else value
                               for value in row])
     notes = book.create_sheet("模型口径")
+    load_policy = ("2026=原合成曲线×0.82；2027=原曲线；2028=原曲线×1.08"
+                   if full_horizon else "首年=原合成8760曲线×0.82；次年=原曲线")
     for row in (("项目", "说明"),
                 ("来源", "固定种子公开合成八类电源；无外部项目数据"),
-                ("阶段", "2026与2027两个连续规划年"),
-                ("负荷", "首年=原合成8760曲线×0.82；次年=原曲线"),
-                ("气象", "两年复用同一合成风光曲线，避免把随机天气差异混入算法比较"),
+                ("阶段", "、".join(str(case.target_year) for case in cases) + "连续规划年"),
+                ("负荷", load_policy),
+                ("气象", "各年复用同一合成风光曲线，避免把随机天气差异混入算法比较"),
                 ("状态", "8个候选项目累计0/1投运；已投运项目不能撤销"),
-                ("费用", "各年=累计年化资本费+全年变动费；第2年按1/(1+r)折现"),
+                # 阶段t从1计数；贴现因子d_t=(1+r)^(-(t-1))，适用于两年与三年。
+                ("费用", "各年=累计年化资本费+全年变动费；第t年按1/(1+r)^(t-1)折现"),
                 ("求解", "Bellman递推，Gurobi 0/1状态模型独立校验；GA同表比较"),
                 ("边界", "单区域确定性运行；无网络潮流和概率可靠性")):
         notes.append(row)
-    book.save(tables_dir / "双年度算法对比汇总.xlsx")
+    book.save(tables_dir / ("全规划年算法对比汇总.xlsx" if full_horizon
+                              else "双年度算法对比汇总.xlsx"))
     # 最终年DP方案仍以原报告接口保存完整8760小时/储能表，便于应用缩放查看。
     final_case = cases[-1]
     final_state = dp_states[-1]
@@ -143,12 +153,15 @@ def execute(destination: Path, discount_rate=0.07, origin_figures=False):
 
 def main():
     """独立CLI明确输出目录；可用同一脚本逐项复现比较报表。"""
-    parser = argparse.ArgumentParser(description="公开合成双年度动态规划与GA对比")
+    parser = argparse.ArgumentParser(description="公开合成动态规划与GA对比")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--discount-rate", type=float, default=0.07)
     parser.add_argument("--origin-figures", action="store_true")
+    parser.add_argument("--full-horizon", action="store_true",
+                        help="增加2028合成年，比较三年度八类电源规划")
     args = parser.parse_args()
-    print(json.dumps(execute(args.output, args.discount_rate, args.origin_figures),
+    print(json.dumps(execute(args.output, args.discount_rate, args.origin_figures,
+                             args.full_horizon),
                      ensure_ascii=False, indent=2))
 
 

@@ -201,3 +201,23 @@ A^{wind}_{i,t}(h)=P^{design}_i f^{wind}_{i,t}(h).
 默认双年度取 \(t=T-1,T\)；可选全规划年取基年之后连续 \(t=1,\dots,T\)。后一模式必须有每年独立源库，不能以单个负荷系数冒充整段历史；所有模式仍由相同 Bellman 递推和 Gurobi 0/1 路径模型求解。若有 \(n\) 个候选位和 \(T\) 个阶段，全年状态评价数为 \(T2^n\)，朴素子集转移复杂度约 \(T3^n\)。Full-horizon planning changes the number of annual input stages, not the meaning of the state or the underlying hourly operation model.
 
 可选“系数情景”设 \(L_{t-1}(h)=\alpha L_t(h)\)，并复用目标年的天气；它是明确的人为情景，\(\alpha\in(0,1]\)。The published GA–DP synthetic comparison deliberately uses this controlled scenario with \(\alpha=0.82\), so both algorithms query identical stage-cost tables. Neither input mode currently models project construction lead times or commissioning eligibility.
+
+### 三年度八类电源数值代入 / Worked three-stage synthetic calculation
+
+新增的公开案例对同一8760小时合成曲线施加 \(\alpha_{2026}=0.82\)、\(\alpha_{2027}=1\)、\(\alpha_{2028}=1.08\)，并保持八个候选项目的身份、容量及费用不变。三年的风光曲线复用同一固定种子样本；这是控制变量的教学情景，不代表逐年天气预测。The scenario construction is fully included in the repository.
+
+状态整数2只有第1个零基位为1，对应15 MW燃气项目。最优路径 \((s_{2026},s_{2027},s_{2028})=(0,2,2)\)，所以按位新增决策是 \((u_{2026},u_{2027},u_{2028})=(0,2,0)\)。每个 \(c_t(s_t)\) 由该年所选状态的完整8760小时运行和年化固定费算出，而不是插值或从最终年图反推。The gas project is commissioned in the second synthetic year and remains in service in the third.
+
+\[
+\begin{aligned}
+F_1(0)&=106{,}363{,}865.86917306,\\
+F_2(2)&=F_1(0)+\frac{138{,}077{,}847.64657784}{1.07}
+       =235{,}408{,}583.29588131,\\
+F_3(2)&=F_2(2)+\frac{153{,}276{,}393.99509826}{1.07^2}
+       =369{,}286{,}121.9412637\quad\text{元}.
+\end{aligned}
+\]
+
+最后一式用程序未舍入数值复算；上式中间显示的小数位仅为便于阅读，最终验收以[阶段原值CSV](../examples/results/v0.2.4/full_horizon_stages.csv)为准。Bellman和独立Gurobi状态MILP的目标同为369,286,121.9412637元。GA按年度编码24位染色体，其每一组8位折叠为累计状态，并只查询相同的 \(c_t(s)\) 表；固定种子运行得到同一路径，目标相差 \(5.96\times10^{-8}\) 元，为浮点加法顺序所致。The cent-level comparison gap is zero; no general GA optimality claim follows.
+
+全状态费用表共有 \(3\cdot2^8=768\) 行。对于所选路径，每年独立回算逐时平衡、储能状态 \(E_{t+1}-E_t-\eta_{ch}P_{ch}+P_{dis}/\eta_{dis}\)、水电月预算 \(\sum_{h\in m}P^{hydro}_h\le B_m\)，同时核对CSV与工作簿的阶段费用。公开[验收结果](../examples/results/v0.2.4/full_horizon_verification.json)给出最大残差与八类实际电量表。These are implementation consistency checks for the declared single-region rule model; they do not establish network security or stochastic adequacy.

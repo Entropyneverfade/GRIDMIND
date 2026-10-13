@@ -70,7 +70,8 @@ try {
         if($axis -eq 'y' -and $spec.zero_once){$tickValues=@($tickValues | Where-Object { $_ -ne 0 })}
         $ticks=($tickValues | ForEach-Object { TickText $_ }) -join ' '
         # 每根轴的实际显示端点都包含在刻度列表；全部刻度仅向内。
-        LT "layer.$axis.ticksbydata$=`"$ticks`";layer.$axis.ticks=1;layer.$axis.ticklength=4;layer.$axis.minorTicks=0;layer.$axis.opposite=0;layer.$axis.showopposite=0;layer.$axis.showaxes=1;layer.$axis.showlabels=1;layer.$axis.thickness=0.7;layer.$axis.label.pt=10;layer.$axis.label.font=font(Times New Roman);"
+        # 主刻度只向内，且比轴线稍粗，使两轴交点处的端点刻度仍可辨认。
+        LT "layer.$axis.ticksbydata$=`"$ticks`";layer.$axis.ticks=1;layer.$axis.ticklength=5;layer.$axis.tickthickness=1.6;layer.$axis.minorTicks=0;layer.$axis.opposite=0;layer.$axis.showopposite=0;layer.$axis.showaxes=1;layer.$axis.showlabels=1;layer.$axis.thickness=0.7;layer.$axis.label.pt=10;layer.$axis.label.font=font(Times New Roman);"
     }
     # 原点保留两轴刻度，只隐藏纵轴第一个0标签。
     if($spec.zero_once){LT 'layer.y.mticksbydata$="0";layer.y.ticks=5;layer.y.mticklength=4;'}

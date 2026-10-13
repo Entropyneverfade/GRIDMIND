@@ -36,6 +36,9 @@ python project_main.py --source <database-folder> --year 2029 --costs <cost.csv>
 .\GRIDMIND.exe --batch-source <database-folder> --batch-year 2029 --batch-output <result-folder> --batch-algorithm dp --batch-stage-input-mode source --batch-planning-horizon full --batch-population 24 --batch-generations 24 --batch-seed 11 --batch-skip-figures
 python gridmind_app/main.py --viewer <result-folder>
 python gridmind_app/main.py --export-monthly-views <result-folder> <image-folder>
+python -m examples.synthetic_dynamic_case --output synthetic_full --full-horizon --origin-figures
+python -m examples.verify_dynamic_case --output synthetic_full
+python gridmind_app/main.py --export-monthly-views synthetic_full/final_year synthetic_full/figures/monthly_views
 python -m unittest discover -s tests -q
 ```
 
@@ -44,3 +47,5 @@ python -m unittest discover -s tests -q
 GA和DP对照须同时固定种群、最大代数和随机种子；这些设置连同年度输入指纹写入 `run_manifest.json`。若批处理未显式给出，默认值分别为12、12、1。The seed alone is insufficient to reproduce a GA run when the population size or generation limit differs.
 
 缺供、在线备用不足、不可消纳过剩和逐时平衡残差均原样存档。水电按逐月可用电量上界近似；储能内部能量跨日连续。成本是可编辑情景参数，公开合成案例的成本不代表项目报价。The engine is a deterministic single-region planning baseline without line-flow security, forced-outage probability or full reservoir cascade modeling.
+
+公开的[三年度合成GA/DP案例](CASE_STUDY.md)和[12张末年月图](FULL_HORIZON_GALLERY.md)可直接用于练习读取阶段表、比较同口径目标和操作任意时段缩放；案例输入全由固定种子生成，不读取外部项目目录。The synthetic example is a reproducibility exercise, not a regional planning recommendation.

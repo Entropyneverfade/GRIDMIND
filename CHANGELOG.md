@@ -2,6 +2,7 @@
 
 ## 2026-10-14 — Stage 0.2.4 / 全规划年源库阶段
 
+- 加入三年度八类电源完全合成GA/DP同口径算例：768个年度运行状态、独立费用/物理回算、Origin阶段图、末年8760小时表与12张月图；全部示例与外部项目库隔离。Added a fully synthetic three-stage eight-technology comparison with 768 annual states, independent audit, figure and tables.
 - 新增双年度/全规划年可选范围；全规划年逐年读取基年之后至终期的年度库，并拒绝用单一负荷系数伪造多年输入。Added an optional full annual-source horizon alongside the existing two-year mode.
 - 所有阶段保持终期候选位一致；年度独有计划项目按对应年度列入外生容量和年化费用报表，Bellman、Gurobi与GA共用阶段费用。Exogenous annual commitments are reported by year, with the same stage-cost tables used by all three algorithms.
 - 阶段工作簿新增逐年GA/DP状态、可行性及折现费用对照页与CSV，并验证GA逐年费用能加总回其总目标。Added a per-year GA/DP cost comparison table with an objective reconciliation check.
