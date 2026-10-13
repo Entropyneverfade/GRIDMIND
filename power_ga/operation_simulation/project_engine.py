@@ -177,14 +177,20 @@ def simulate_project(case: ProjectCase, chromosome, keep_hourly=False,
     for t in range(8760):
         month = month_of[t]
         if t % 24 == 0:
-            # 日前开机：以次日最大净负荷+在线备用为容量需求，按变动成本排序。
-            required = max(net[t:min(t + 24, 8760)]) * (1 + reserve_ratio)
+            # 日前开机需满足净负荷+按原始总负荷计的在线备用。
+            # 水电只按本日逐时可用上限的最小值计容量；额定MW若无水量不能
+            # 承担全天备用，否则会少开煤/气机组并产生虚假的缺供。
+            day_end = min(t + 24, 8760)
+            required = max(net[h] + reserve_ratio * load[h] for h in range(t, day_end))
             selected, capacity = [], 0.0
             for plant in dispatchable:
                 if capacity >= required:
                     break
                 selected.append(plant)
-                capacity += plant.capacity_mw
+                credit = (min(hydro_schedule[plant.station_id][h]
+                              for h in range(t, day_end))
+                          if plant.technology == "hydro" else plant.capacity_mw)
+                capacity += credit
             online = tuple(selected)
         # 水电小时上限来自月水量分配曲线，且不超过实际剩余月预算。
         max_output = {}
@@ -268,7 +274,13 @@ def simulate_project(case: ProjectCase, chromosome, keep_hourly=False,
                     totals["variable_cost"] += actual * share * p.variable_cost_yuan_per_mwh
         reserve_need = load[t] * reserve_ratio
         reserve_avail = sum(max_output[p.station_id] - generation[p.station_id] for p in online)
-        reserve_avail += sum(min(s.plant.capacity_mw, s.energy_mwh * s.eta) for s in stores)
+        # 备用只计当时未使用的放电功率且须能持续1小时：
+        # R_s=min(Pmax−Pdis, E_end×ηdis/1h)；正在充电的站不重复承担备用。
+        # 否则同一MW会同时记为充电、放电备用，导致规划虚假可行。
+        reserve_avail += sum(
+            min(max(0.0, state.plant.capacity_mw - storage_discharges[i]),
+                state.energy_mwh * state.eta)
+            for i, state in enumerate(stores) if storage_charges[i] < 1e-9)
         reserve_gap = max(0.0, reserve_need - reserve_avail)
         supply = sum(by_kind.values()) + wind + solar + discharge + unserved
         over = max(0.0, supply - load[t] - charge)

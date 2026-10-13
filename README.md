@@ -47,4 +47,4 @@ All included hourly profiles are synthetic. The editable technology-cost CSV con
 
 Code and original documentation are provided under the [MIT License](LICENSE). Optional dependencies retain their own licenses. / 代码与原创文档采用 MIT 许可证，第三方依赖遵循各自许可证。
 
-For the verified development checkpoint, see [Stage report / 阶段成果](docs/PROGRESS_2026-10-13.md). / 当前已验证的开发状态、13项合成测试和适用边界见阶段报告。
+For the verified development checkpoint, see [Stage report / 阶段成果](docs/PROGRESS_2026-10-13.md). / 当前已验证的开发状态、16项合成测试和适用边界见阶段报告。

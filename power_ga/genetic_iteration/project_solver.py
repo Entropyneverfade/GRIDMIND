@@ -7,7 +7,7 @@ from .solver import optimize
 
 
 def evaluate_project(case, chromosome):
-    """目标=候选年化资本费+真实运行变动费；缺供/容量是硬约束。"""
+    """目标=候选年化资本费+运行费；缺供、在线备用与容量均为硬约束。"""
     simulation = simulate_project(case, chromosome, keep_hourly=False)
     metrics = simulation.summary
     built = [p for bit, p in zip(chromosome, case.candidates) if bit]
@@ -22,13 +22,15 @@ def evaluate_project(case, chromosome):
     unserved = metrics["unserved"]
     over = metrics["overgeneration"]
     online_reserve_gap = metrics["reserve_shortfall"]
-    # 逐时在线备用由规则开机近似，作为透明诊断；规划硬约束是
-    # 年缺供、年过剩及源表给出的装机备用率。
+    # 在线备用短缺为逐时 max(0, r×总负荷−可用备用)×1h 的年度积分。
+    # 只有全年积分不超数值容差才可行，不能仅用额定装机备用替代运行备用。
     feasible = (unserved <= ANNUAL_ENERGY_TOLERANCE_MWH and
                 over <= ANNUAL_ENERGY_TOLERANCE_MWH and
+                online_reserve_gap <= ANNUAL_ENERGY_TOLERANCE_MWH and
                 reserve_gap <= POWER_TOLERANCE_MW)
     scale = max(sum(case.domestic_load_mw), 1.0)
-    violation = (unserved + over) / scale + reserve_gap / max(domestic_peak, 1.0)
+    violation = ((unserved + over + online_reserve_gap) / scale +
+                 reserve_gap / max(domestic_peak, 1.0))
     return Evaluation(tuple(chromosome), fixed, metrics["variable_cost"],
                       fixed + metrics["variable_cost"], unserved,
                       int(metrics["shortage_hours"]), firm, required, reserve_gap,

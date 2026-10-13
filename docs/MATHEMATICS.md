@@ -56,15 +56,18 @@ h_t^{target}=\min(\overline P_h,\lambda_m w_t),\qquad
 
 ## 5. 规划可行性 / Planning feasibility
 
-当前项目评价要求年度缺供和物理过剩分别不超过数值容差，并要求可信装机满足输入的规划备用率：
+当前项目评价要求年度缺供、物理过剩、在线备用不足分别不超过数值容差，并要求常规可信装机满足输入的规划备用率：
 
 \[
 \sum_t P_t^{ENS}\Delta t\le\epsilon_E,\quad
 \sum_t P_t^{excess}\Delta t\le\epsilon_E,\quad
+\sum_t \max(0,r_{op}D_t^{total}-R_t^{online})\Delta t\le\epsilon_E,\quad
 F(x)\ge (1+r)\max_t D_t^{domestic}-\epsilon_P.
 \]
 
-For this conservative baseline, \(F\) counts coal, gas, conventional hydro and biomass rated MW. Wind, PV and storage receive zero planning firm capacity until an independent capacity-credit study is supplied. This is **not** a probabilistic EENS, LOLE or ELCC calculation. 当前逐时备用短缺另列为诊断，不被偷偷当成概率风险指标。
+For this baseline, \(F\) counts coal, gas, conventional hydro and biomass rated MW; this proxy may overstate hydro's actual dependable capacity. Wind, PV and storage receive zero planning firm capacity until an independent capacity-credit study is supplied. This is **not** a probabilistic EENS, LOLE or ELCC calculation. \(R_t^{online}\) 由已开机常规机组剩余能力与当时可持续1小时的储能备用组成，在线备用不足同时报告为诊断量。
+
+日前开机以次日 \(\max_t[(D_t-A_t^{wind}-A_t^{PV})+r_{op}D_t]\) 为需求；常规水电只按次日各小时可用上限的最小值计入开机容量。储能向上备用在非充电小时为 \(R_{s,t}=\min(\overline P_s-P_{s,t}^{dis},E_{s,t+1}\eta_s^{dis}/1\mathrm h)\)，充电小时计零，避免同一功率同时承担充电和放电备用。These are conservative operational rules, not a full unit-commitment solution.
 
 ## 6. 试算成本 / Benchmark cost assumptions
 

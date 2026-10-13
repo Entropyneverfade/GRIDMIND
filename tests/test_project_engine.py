@@ -64,6 +64,44 @@ class ProjectEngineTests(unittest.TestCase):
         self.assertAlmostEqual(result.best.total_cost_yuan, optimum.total_cost_yuan)
         self.assertTrue(result.best.feasible)
 
+    def test_dry_hydro_does_not_replace_daily_firm_commitment(self):
+        """水量为零的50MW水电不计日前全天可用容量，燃气须开机补足负荷与备用。"""
+        plants = (CasePlant(1, "DryHydro", "hydro", 50, 0, 0, 0,
+                            hydro_monthly_factor=(0.0,) * 12),
+                  CasePlant(2, "Coal", "coal", 70, 0, 300, 0),
+                  CasePlant(3, "Gas", "gas", 60, 0, 500, 0))
+        case = ProjectCase(2025, 2029, plants, (), (100.0,) * 8760,
+                           (0.0,) * 8760, 0.03, 0, (), "", "")
+        run = simulate_project(case, (), keep_hourly=True)
+        self.assertAlmostEqual(run.summary["unserved"], 0.0)
+        self.assertAlmostEqual(run.summary["reserve_shortfall"], 0.0)
+        self.assertAlmostEqual(run.hourly[0].hydro_mw, 0.0)
+        self.assertGreater(run.hourly[0].gas_mw, 0.0)
+
+    def test_online_reserve_is_planning_feasibility_gate(self):
+        """无缺供但仅余2MW备用、需3MW备用时，不能报告为可行规划。"""
+        case = ProjectCase(2025, 2029,
+                           (CasePlant(1, "Coal", "coal", 102, 0, 300, 0),),
+                           (), (100.0,) * 8760, (0.0,) * 8760,
+                           0.0, 0, (), "", "")
+        score = evaluate_project(case, ())
+        self.assertAlmostEqual(score.unserved_mwh, 0.0)
+        self.assertGreater(score.reserve_shortfall_mwh, 0.0)
+        self.assertFalse(score.feasible)
+
+    def test_charging_storage_is_not_counted_as_upward_reserve(self):
+        """充电10MW时不能再把刚充入的内部电量作为同小时备用。"""
+        case = ProjectCase(2025, 2029,
+                           (CasePlant(1, "Coal", "coal", 100, 1.0, 300, 0),
+                            CasePlant(2, "Battery", "battery", 20, 0, 0, 0,
+                                      (), 2, 1, 0.81)),
+                           (), (90.0,) * 8760, (0.0,) * 8760,
+                           0.0, 0, (), "", "")
+        run = simulate_project(case, (), keep_hourly=True)
+        self.assertAlmostEqual(run.hourly[0].storage_charge_mw, 10.0)
+        self.assertAlmostEqual(run.hourly[0].reserve_available_mw, 0.0)
+        self.assertAlmostEqual(run.hourly[0].reserve_shortfall_mw, 2.7)
+
 
 if __name__ == "__main__":
     unittest.main()

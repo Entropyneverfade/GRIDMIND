@@ -1,5 +1,12 @@
 # Development progress / 开发进度
 
+## 2026-10-13 — Stage 0.1.2 / 阶段修正
+
+- Fixed daily commitment credit for hydro energy-limited hours and excluded charging storage or already-used discharge MW from online reserve. / 修正缺水水电和储能备用重复计数。
+- Made annual online reserve shortfall an explicit project-planning feasibility gate; added three synthetic regression cases. / 将年度在线备用不足纳入规划硬约束，增加三个合成反例测试。
+- Added a desktop action to reopen archived runs without recomputing them. / 桌面窗口可重新载入已有结果存档。
+- All 16 synthetic tests pass; the current private annual result was regenerated and independently audited. / 16项合成测试通过，私有年度结果已重新生成并独立复核。
+
 ## 2026-10-13 — Stage 0.1.1 / 阶段版本
 
 - The Windows EXE was rebuilt with its original icon; a hidden-window startup check passed. / 带原创图标的Windows应用已重打包，后台窗口启动检查通过。

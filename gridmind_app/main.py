@@ -212,6 +212,21 @@ def launch_app(smoke=False):
         if last_result["path"]:
             os.startfile(last_result["path"])
 
+    def load_saved():
+        """重新载入既有存档；只读检查清单和小时表，不重新运行或覆盖结果。"""
+        selected = filedialog.askdirectory(parent=root, title="选择已有GRIDMIND结果存档")
+        if not selected:
+            return
+        folder = Path(selected)
+        if not (folder / "run_manifest.json").is_file() or not (folder / "tables" / "hourly_dispatch.csv").is_file():
+            messagebox.showerror("存档无效", "所选文件夹缺少运行清单或8760小时表", parent=root)
+            return
+        last_result["path"] = folder
+        view_button.configure(state="normal")
+        folder_button.configure(state="normal")
+        ga_button.configure(state="normal" if (folder / "tables" / "history.csv").is_file() else "disabled")
+        status.set("已载入存档：" + str(folder))
+
     result_tools = ttk.Frame(frame)
     result_tools.grid(row=6, column=0, columnspan=3, sticky="w", pady=(0, 13))
     view_button = ttk.Button(result_tools, text="查看8760小时运行图", command=open_viewer, state="disabled")
@@ -220,6 +235,7 @@ def launch_app(smoke=False):
     ga_button.pack(side="left", padx=(0, 10))
     folder_button = ttk.Button(result_tools, text="打开结果存档", command=open_folder, state="disabled")
     folder_button.pack(side="left")
+    ttk.Button(result_tools, text="载入已有存档", command=load_saved).pack(side="left", padx=(10, 0))
     ttk.Label(frame, textvariable=status, foreground="#235777").grid(
         row=7, column=0, columnspan=3, sticky="w", pady=5)
     log = tk.Text(frame, height=15, state="disabled", wrap="word", font=("Microsoft YaHei UI", 9))
