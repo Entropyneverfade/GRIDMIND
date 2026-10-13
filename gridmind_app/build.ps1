@@ -1,5 +1,5 @@
 ﻿# GRIDMIND应用打包入口；本文件只处理窗口与依赖，不修改算法模块。
-param([string]$PythonPath = 'python')
+param([string]$PythonPath = 'python', [string]$Version = '0.2.1')
 $ErrorActionPreference = 'Stop'
 $app = Split-Path -Parent $MyInvocation.MyCommand.Path
 $project = Split-Path -Parent $app
@@ -33,11 +33,14 @@ if($LASTEXITCODE -ne 0) { throw 'PyInstaller打包失败' }
 # 根目录放用户可直接双击的正式EXE；打包缓存仍隔离在应用开发文件夹。
 $built = Join-Path $app 'dist\GRIDMIND.exe'
 $delivery = Join-Path $project 'GRIDMIND.exe'
+# 每次保留版本化应用；旧版正在打开时仍能直接双击新版。
+$versioned = Join-Path $project "GRIDMIND_$Version.exe"
+Copy-Item -LiteralPath $built -Destination $versioned -Force
 try {
     Copy-Item -LiteralPath $built -Destination $delivery -Force
     Write-Output $delivery
 } catch [System.IO.IOException] {
     # 用户若正在使用旧EXE，保留其窗口；完整新版已在独立dist目录等待替换。
-    Write-Warning "根目录EXE仍在运行，保留旧文件；新版位于 $built"
-    Write-Output $built
+    Write-Warning "根目录EXE仍在运行，保留旧文件；新版位于 $versioned"
+    Write-Output $versioned
 }

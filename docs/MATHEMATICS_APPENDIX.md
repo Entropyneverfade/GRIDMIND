@@ -177,3 +177,16 @@ Gurobi 独立解 0/1 状态模型：\(z_{t,s}=1\) 表示阶段 \(t\) 取状态 \
 逐年只选一个状态使单个位不下降的约束等价于合法建设路径。DP 与 Gurobi 目标必须在 0.01 元或 \(10^{-8}\) 相对误差内一致；最终路径各年重新运行 8,760 小时并核验最大功率平衡残差不超过 \(10^{-6}\) MW。This cross-check certifies the finite enumerated path under the stated deterministic operation model, not the physical completeness of that model.
 
 同口径多年度 GA 把每年的新建决策按 \(t\times |J|+i\) 编码，重复建设位按最早投运年归并；累计状态和费用表与 DP 共用。其相对差距为 \((C^{GA}-C^{DP})/C^{DP}\)，只对该有限合成案例解释，不推广为算法性能定律。For the complete numerical audit, see [synthetic case and comparison](CASE_STUDY.md).
+
+### 年度源输入与共同候选位 / Annual inputs and common project bits
+
+桌面版默认对相邻两个年度分别读取其负荷单位曲线、预测峰值、外送、风光与水文因子。对阶段 \(t\) 的小时 \(h\)，本地需求和候选风电可用功率分别为
+
+\[
+L_t(h)=P^{peak}_t f^{load}_t(h),\qquad
+A^{wind}_{i,t}(h)=P^{design}_i f^{wind}_{i,t}(h).
+\]
+
+目标年定义的 \(P^{design}_i\)、项目身份和状态位 \(s_{t,i}\) 在两个阶段保持相同；年度源库里已列出的候选容量仍由 \(s_{t,i}\) 决定是否投运，不能算入固定存量。常规水电年度月预算则使用该年水文因子：\(B_{i,m,t}=P^{design}_i H_m u_h f^{hydro}_{i,m,t}\)。The separate yearly profiles change stage operations, while terminal project design and binary identity remain common. Missing annual renewable or hydro records cause an explicit error rather than a silent reuse of terminal weather.
+
+可选“系数情景”设 \(L_{t-1}(h)=\alpha L_t(h)\)，并复用目标年的天气；它是明确的人为情景，\(\alpha\in(0,1]\)。The published GA–DP synthetic comparison deliberately uses this controlled scenario with \(\alpha=0.82\), so both algorithms query identical stage-cost tables. Neither input mode currently models project construction lead times or commissioning eligibility.

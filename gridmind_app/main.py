@@ -2,6 +2,7 @@
 
 import argparse
 import csv
+import json
 import os
 import queue
 import shutil
@@ -108,9 +109,13 @@ def show_dp_window(result_dir):
     states = [int(row["累计状态整数"]) for row in rows]
     window = tk.Tk()
     window.title("GRIDMIND · 动态规划阶段结果")
-    window.geometry("1050x700")
+    history_path = Path(result_dir) / "tables" / "multiyear_ga_history.csv"
+    has_comparison = history_path.is_file()
+    window.geometry("1050x790" if has_comparison else "1050x700")
     figure = Figure(figsize=(10, 6), dpi=100)
-    top, bottom = figure.subplots(2, 1, gridspec_kw={"hspace": 0.32})
+    axes = figure.subplots(3 if has_comparison else 2, 1,
+                          gridspec_kw={"hspace": 0.45 if has_comparison else 0.32})
+    top, bottom = axes[:2]
     top.plot(years, annual, "o-", color="#1D3557", linewidth=2, label="年度费用")
     top.plot(years, discounted, "s--", color="#D96C2B", linewidth=1.5, label="折现费用")
     top.set_ylabel("费用 / 亿元")
@@ -124,8 +129,38 @@ def show_dp_window(result_dir):
         axis.set_xticks(years)
         axis.grid(alpha=0.2)
         axis.tick_params(direction="in", which="both")
-    figure.suptitle("动态规划年度建设与费用", fontsize=14)
-    figure.subplots_adjust(left=0.12, right=0.97, top=0.89, bottom=0.11)
+    if has_comparison:
+        # 同一状态费用表上的GA收敛曲线与DP全局下界并排显示；不可行代不冒充最优。
+        with history_path.open(encoding="utf-8-sig", newline="") as stream:
+            history = list(csv.DictReader(stream))
+        generations = [int(row["代"]) for row in history]
+        feasible = [row["历代最优可行"].lower() == "true" for row in history]
+        values = [float(row["历代最优折现费用元"]) / 1e8 if valid else float("nan")
+                  for row, valid in zip(history, feasible)]
+        comparison = axes[2]
+        comparison.plot(generations, values, color="#1D3557", linewidth=2,
+                        marker="o", markersize=2.5, label="GA可行最优")
+        audit = json.loads((Path(result_dir) / "dynamic_audit.json").read_text(encoding="utf-8"))
+        comparison.axhline(audit["objective_yuan"] / 1e8, color="#D96C2B",
+                           linestyle="--", linewidth=1.5, label="DP/Gurobi最优")
+        comparison.set_ylabel("折现总费 / 亿元")
+        comparison.set_xlabel("遗传代数")
+        comparison.grid(alpha=0.2)
+        comparison.legend()
+        comparison.tick_params(direction="in", which="both")
+    figure.suptitle("动态规划年度建设与同口径遗传对照" if has_comparison else
+                    "动态规划年度建设与费用", fontsize=14)
+    figure.subplots_adjust(left=0.12, right=0.97, top=0.91 if has_comparison else 0.89,
+                           bottom=0.09 if has_comparison else 0.11)
+    for axis in axes:
+        # 显示边界也要有真实内向刻度，边界小刻度无需重复数字标签。
+        x_left, x_right = axis.get_xlim()
+        y_low, y_high = axis.get_ylim()
+        axis.set_xticks((x_left, x_right), minor=True)
+        axis.set_yticks((y_low, y_high), minor=True)
+        axis.tick_params(which="minor", direction="in", length=4)
+        axis.set_xlim(x_left, x_right)
+        axis.set_ylim(y_low, y_high)
     canvas = FigureCanvasTkAgg(figure, master=window)
     canvas.get_tk_widget().pack(fill="both", expand=True)
     toolbar = NavigationToolbar2Tk(canvas, window, pack_toolbar=False)
@@ -158,7 +193,7 @@ def launch_app(smoke=False):
     frame.pack(fill="both", expand=True)
     ttk.Label(frame, text="GRIDMIND", font=("Microsoft YaHei UI", 25, "bold"),
               foreground="#17365D").grid(row=0, column=0, sticky="w", columnspan=3)
-    ttk.Label(frame, text="全年8760小时 · 多类型电源 · 遗传规划 · 可复用结果存档",
+    ttk.Label(frame, text="全年8760小时 · 多类型电源 · 遗传/动态规划 · 可复用结果存档",
               foreground="#56718A").grid(row=1, column=0, sticky="w", columnspan=3, pady=(0, 22))
     # 最近使用的数据目录仅保存在EXE旁；程序包不携带真实算例路径。
     source_record = user_folder() / "last_source.txt"
@@ -170,6 +205,7 @@ def launch_app(smoke=False):
     generations = tk.StringVar(value="12")
     seed = tk.StringVar(value="1")
     algorithm = tk.StringVar(value="遗传算法")
+    stage_source = tk.StringVar(value="年度源库")
     previous_factor = tk.StringVar(value="0.95")
     figures = tk.BooleanVar(value=True)
     status = tk.StringVar(value="请选择项目数据库，然后开始计算")
@@ -201,14 +237,18 @@ def launch_app(smoke=False):
         ttk.Label(options, text=label).pack(side="left")
         ttk.Entry(options, textvariable=var, width=7).pack(side="left", padx=(5, 17))
     ttk.Checkbutton(options, text="生成Origin图件", variable=figures).pack(side="left", padx=6)
-    # 动态规划使用同一目标年库推导前一年负荷情景；系数由用户明确输入。
+    # 动态规划默认取独立年度曲线；系数情景只在用户选中时参与计算。
     method_options = ttk.Frame(frame)
     method_options.grid(row=5, column=0, columnspan=3, sticky="w", pady=(0, 8))
     ttk.Label(method_options, text="规划方法").pack(side="left")
     ttk.Combobox(method_options, textvariable=algorithm,
                  values=("遗传算法", "动态规划（双年度）"), state="readonly",
-                 width=20).pack(side="left", padx=(5, 20))
-    ttk.Label(method_options, text="动态规划前一年负荷系数").pack(side="left")
+                 width=20).pack(side="left", padx=(5, 12))
+    ttk.Label(method_options, text="阶段输入").pack(side="left")
+    ttk.Combobox(method_options, textvariable=stage_source,
+                 values=("年度源库", "系数情景"), state="readonly",
+                 width=9).pack(side="left", padx=(5, 12))
+    ttk.Label(method_options, text="情景负荷系数").pack(side="left")
     ttk.Entry(method_options, textvariable=previous_factor, width=7).pack(side="left", padx=5)
     controls = ttk.Frame(frame)
     controls.grid(row=6, column=0, columnspan=3, sticky="w", pady=(8, 14))
@@ -223,7 +263,8 @@ def launch_app(smoke=False):
             factor = float(previous_factor.get())
             if pop < 2 or gen < 1:
                 raise ValueError("种群至少2个、最大代数至少1代")
-            if plan and algorithm.get().startswith("动态") and not 0 < factor <= 1:
+            if (plan and algorithm.get().startswith("动态") and
+                    stage_source.get() == "系数情景" and not 0 < factor <= 1):
                 raise ValueError("动态规划前一年负荷系数必须在(0,1]内")
         except ValueError as error:
             messagebox.showerror("输入错误", str(error), parent=root)
@@ -237,6 +278,7 @@ def launch_app(smoke=False):
 
         make_figures = bool(figures.get())  # Tk变量只在主线程取值。
         method = "dp" if algorithm.get().startswith("动态") else "ga"
+        stage_mode = "source" if stage_source.get() == "年度源库" else "scaled"
 
         def worker():
             """后台执行GA和全年模拟；Origin也仅在后台独立进程中运行。"""
@@ -244,7 +286,8 @@ def launch_app(smoke=False):
                 _, result, simulation, folder = execute(src, y, cost, destination,
                     plan=plan, figures=make_figures, population=pop, generations=gen,
                     seed=random_seed, progress=lambda message: messages.put(("status", message)),
-                    algorithm=method, previous_load_factor=factor)
+                    algorithm=method, previous_load_factor=factor,
+                    stage_input_mode=stage_mode)
                 messages.put(("done", (folder, result, simulation.summary)))
             except Exception as error:
                 messages.put(("error", str(error)))
@@ -252,7 +295,7 @@ def launch_app(smoke=False):
 
     start_plan = ttk.Button(controls, text="运行所选规划与全年模拟", command=lambda: run(True))
     start_plan.pack(side="left", padx=(0, 10))
-    start_sim = ttk.Button(controls, text="仅模拟基年存量", command=lambda: run(False))
+    start_sim = ttk.Button(controls, text="仅模拟存量系统", command=lambda: run(False))
     start_sim.pack(side="left")
 
     def open_viewer():
@@ -369,6 +412,7 @@ def main():
     parser.add_argument("--batch-skip-figures", action="store_true")
     parser.add_argument("--batch-algorithm", choices=("ga", "dp"), default="ga")
     parser.add_argument("--batch-previous-load-factor", type=float, default=0.95)
+    parser.add_argument("--batch-stage-input-mode", choices=("source", "scaled"), default="source")
     parser.add_argument("--batch-synthetic-dynamic", type=Path,
                         help="用EXE复现公开合成双年度GA/DP对比案例")
     parser.add_argument("--gurobi-check", action="store_true", help=argparse.SUPPRESS)
@@ -419,7 +463,8 @@ def main():
                     plan=not args.batch_simulate_only,
                     figures=not args.batch_skip_figures,
                     algorithm=args.batch_algorithm,
-                    previous_load_factor=args.batch_previous_load_factor)
+                    previous_load_factor=args.batch_previous_load_factor,
+                    stage_input_mode=args.batch_stage_input_mode)
         except Exception as error:
             output.mkdir(parents=True, exist_ok=True)
             (output / "batch_error.txt").write_text(str(error), encoding="utf-8")

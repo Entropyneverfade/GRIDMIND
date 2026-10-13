@@ -1,5 +1,11 @@
 # Development progress / 开发进度
 
+## 2026-10-14 — Stage 0.2.1 / 年度阶段源输入
+
+- 双年度动态规划默认使用前一年与目标年各自的负荷、外送、风光和水文曲线，保留终期共同候选位。Two-year DP now defaults to separate annual input profiles while maintaining a common candidate encoding.
+- 保留可选的负荷系数情景，并在阶段表和清单中记录模式及逐时输入指纹。The optional scaled scenario remains available; reports record the input mode and hourly-input hashes.
+- 增加年度曲线对齐与缺失曲线拒绝测试。Synthetic tests cover source-profile alignment and missing renewable data.
+
 ## 2026-10-14 — Stage 0.2.0 / 完整合成遗传规划与双年度动态规划
 
 - Added a complete eight-candidate GA case with 8,760-hour operation, one consolidated workbook, native static figures and exhaustive 256-plan verification. / 增加八候选位遗传规划完整合成算例、全年表图及256方案穷举校验。

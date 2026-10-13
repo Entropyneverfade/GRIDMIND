@@ -3,7 +3,7 @@
 import csv
 import math
 from calendar import isleap
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Tuple
@@ -258,3 +258,41 @@ def load_project_case(source_folder: Path, target_year: int, cost_path: Path) ->
     return ProjectCase(base_year, target_year, tuple(existing), tuple(candidates),
                        domestic, tuple(export), float(load_row[5] or 0), annual_forecast,
                        tuple(warnings), str(source_folder), str(cost_path))
+
+
+def align_stage_case(final_case: ProjectCase, year_case: ProjectCase) -> ProjectCase:
+    """把该年源库曲线接入统一候选位；建设容量和经济参数沿用终期设计。"""
+    if year_case.target_year >= final_case.target_year or year_case.base_year != final_case.base_year:
+        raise ValueError("阶段源数据年份必须在共同基年之后、终期目标年之前")
+    # 阶段源库中已投运的新增容量仍是规划备选项，不能并入固定存量。
+    # 因而只借用该年的负荷、外送、风光与水文曲线，保留终期0/1建设位。
+    annual_plants = {plant.station_id: plant
+                     for plant in year_case.existing + year_case.candidates}
+    warnings = list(year_case.warnings)
+
+    def use_year_profile(plant: CasePlant) -> CasePlant:
+        """相同电站按年度替换天气/来水；缺少可再生曲线时拒绝猜测。"""
+        source = annual_plants.get(plant.station_id)
+        if source is None:
+            if plant.technology in {"wind", "solar", "hydro"}:
+                raise ValueError(f"{year_case.target_year}阶段缺少电站{plant.station_id}的年度曲线")
+            warnings.append(f"{year_case.target_year}阶段未列电站{plant.station_id}；沿用终期机组技术参数")
+            return plant
+        if source.technology != plant.technology:
+            raise ValueError(f"电站{plant.station_id}在年度库和终期库的技术类型不一致")
+        if plant.technology in {"wind", "solar"}:
+            if len(source.profile) != 8760:
+                raise ValueError(f"电站{plant.station_id}年度可再生曲线不是8760小时")
+            return replace(plant, profile=source.profile)
+        if plant.technology == "hydro":
+            return replace(plant, hydro_monthly_factor=source.hydro_monthly_factor)
+        return plant
+
+    return replace(final_case, target_year=year_case.target_year,
+                   existing=tuple(map(use_year_profile, final_case.existing)),
+                   candidates=tuple(map(use_year_profile, final_case.candidates)),
+                   domestic_load_mw=year_case.domestic_load_mw,
+                   export_mw=year_case.export_mw,
+                   reserve_margin=year_case.reserve_margin,
+                   annual_energy_forecast_gwh=year_case.annual_energy_forecast_gwh,
+                   warnings=tuple(warnings))

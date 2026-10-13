@@ -48,7 +48,7 @@ python gridmind_app/main.py --export-monthly-views synthetic_ga synthetic_months
 python -m unittest discover -s tests -q
 ```
 
-On Windows, `gridmind_app/build.ps1` uses PyInstaller to create `GRIDMIND.exe` with the original icon and bundled renderer. Static native Origin figures require a separately installed Origin; turn off the figure option in the desktop app when unavailable. The EXE accepts `--viewer <result-folder>` to open the zoom window, `--export-demo-views` for five scales, and `--export-monthly-views` for twelve event-marked months. A valid local Gurobi installation/license is required for DP; it is not included in this repository. Windows 下可用打包脚本生成带原创图标的 EXE；动态规划依赖本机有效 Gurobi 许可。
+On Windows, `gridmind_app/build.ps1` uses PyInstaller to create `GRIDMIND.exe` and a versioned copy with the original icon and bundled renderer. The versioned copy remains usable if an older root EXE is open. Static native Origin figures require a separately installed Origin; turn off the figure option in the desktop app when unavailable. The EXE accepts `--viewer <result-folder>` to open the zoom window, `--export-demo-views` for five scales, and `--export-monthly-views` for twelve event-marked months. A valid local Gurobi installation/license is required for DP; it is not included in this repository. Windows 下可用打包脚本生成带原创图标的 EXE；动态规划依赖本机有效 Gurobi 许可。
 
 ## Zoom demonstration / 8760小时缩放演示
 

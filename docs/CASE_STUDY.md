@@ -22,7 +22,7 @@
 
 ## 2. 动态规划 / Dynamic programming
 
-PPT 将规划年定义为阶段，已投运候选集合定义为状态，本年新建项目定义为决策，状态只能由未建转为已建。本案例用 2026、2027 两个**合成年份**：首年负荷为同一合成曲线的 0.82 倍，次年为原曲线；两年复用合成风光天气以隔离算法差异。贴现率 \(r=0.07\)。The two stages use identical candidate identities and operating logic, with only the declared load scaling changing.
+PPT 将规划年定义为阶段，已投运候选集合定义为状态，本年新建项目定义为决策，状态只能由未建转为已建。本案例用 2026、2027 两个**合成年份**：首年负荷为同一合成曲线的 0.82 倍，次年为原曲线；两年复用合成风光天气以隔离算法差异。贴现率 \(r=0.07\)。The two stages use identical candidate identities and operating logic, with only the declared load scaling changing. Desktop project runs additionally offer separate annual source curves by default; this published controlled case intentionally uses scaled synthetic demand.
 
 记 \(s_t\subseteq J\) 为阶段末累计投运集合，\(p\subseteq s_t\) 为上一阶段状态，阶段年费 \(c_t(s_t)=C_t^{ann}(s_t)+C_t^{op}(s_t)\)。所有可行状态都运行完整 8,760 小时；不可行状态不进入路径。顺序递推为
 
@@ -58,6 +58,8 @@ Gurobi 优化的是预先经8760小时规则模拟计算的**阶段路径**，�
 | 折现总费用 / Discounted objective | 235,408,583.30 元 | 235,408,583.30 元 |
 | 相对 DP 差距 / Relative gap | 0.00% | 0.00% |
 | 搜索性质 / Search guarantee | 启发式，无一般最优保证 | 枚举状态后的 Bellman 最优，Gurobi 独立核验 |
+
+多年度 GA 采用种群 64、最大 80 代、随机种子 19；本算例的“末年只建燃气”方案已作为有物理意义的 Gen=0 种子加入，故最优费用在第 0 代即出现，随后因停滞在第 20 代停止。GA 共查询 1,017 个不同的逐年建设染色体；DP 实际执行 \(2\times2^8=512\) 个年度状态的8760小时评价，GA随后只查询同一缓存表。因此这些计数衡量的工作不同，不能直接拿来宣称一种算法运行更快。The seeded optimum demonstrates objective consistency in this controlled case, not a generic convergence advantage.
 
 本小算例的 0% 差距不意味着两种方法普遍等价：GA 受初代、种群和停止条件影响；DP 状态数随候选数按 \(2^{|J|}\) 增长，阶段转移的朴素枚举约为 \(3^{|J|}\)。Both methods inherit the same deterministic single-region operation assumptions. In this release the DP path is capped at eight candidate bits in the desktop application to keep state enumeration reviewable.
 
