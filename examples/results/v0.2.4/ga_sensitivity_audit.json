@@ -1,0 +1,104 @@
+{
+  "synthetic": true,
+  "status": "PASS",
+  "years": [
+    2026,
+    2027,
+    2028
+  ],
+  "hours_per_year": 8760,
+  "annual_states_evaluated": 768,
+  "table_sha256": "107c28e075ee129a8716165f6c37b11560c67a304b04fcd8cb638d4038b66b23",
+  "dp_objective_yuan": 369286121.9412637,
+  "gurobi_objective_yuan": 369286121.9412637,
+  "dp_path": [
+    0,
+    2,
+    2
+  ],
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "budgets": [
+    [
+      8,
+      4
+    ],
+    [
+      10,
+      6
+    ],
+    [
+      12,
+      12
+    ],
+    [
+      64,
+      80
+    ]
+  ],
+  "ga_settings_fixed": {
+    "min_generations": 1,
+    "stall_generations": 5,
+    "elite_count": 2,
+    "crossover_rate": 0.85,
+    "mutation_rate": 0.045
+  },
+  "initial_population_policy": "两个基准方案+按末年到首年的单项目建设种子，余位随机；种群容量截断种子列表",
+  "selected_unique_annual_states_replayed": 59,
+  "max_balance_residual_mw": 2.842170943040401e-14,
+  "max_storage_residual_mwh": 3.552713678800501e-15,
+  "summary": [
+    {
+      "population": 8,
+      "max_generations": 4,
+      "seeds": 20,
+      "hits": 1,
+      "mean_gap": 0.42123666376411456,
+      "max_gap": 1.5175264568330502
+    },
+    {
+      "population": 10,
+      "max_generations": 6,
+      "seeds": 20,
+      "hits": 1,
+      "mean_gap": 0.3635233682807705,
+      "max_gap": 1.5175264568330502
+    },
+    {
+      "population": 12,
+      "max_generations": 12,
+      "seeds": 20,
+      "hits": 20,
+      "mean_gap": 0.0,
+      "max_gap": 0.0
+    },
+    {
+      "population": 64,
+      "max_generations": 80,
+      "seeds": 20,
+      "hits": 20,
+      "mean_gap": 0.0,
+      "max_gap": 0.0
+    }
+  ]
+}

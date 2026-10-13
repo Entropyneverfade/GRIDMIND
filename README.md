@@ -48,6 +48,8 @@ python -m examples.synthetic_full_case --output synthetic_ga
 python -m examples.synthetic_dynamic_case --output synthetic_ga_dp
 python -m examples.synthetic_dynamic_case --output synthetic_full --full-horizon
 python -m examples.verify_dynamic_case --output synthetic_full
+python -m examples.synthetic_ga_sensitivity --output synthetic_ga_sensitivity
+python -m examples.verify_ga_sensitivity --output synthetic_ga_sensitivity --reference-states synthetic_full/tables/all_stage_states.csv
 python gridmind_app/main.py --export-demo-views synthetic_demo synthetic_views
 python gridmind_app/main.py --export-monthly-views synthetic_ga synthetic_months
 python -m unittest discover -s tests -q
@@ -67,7 +69,7 @@ The five images below are **fully synthetic** eight-technology 8,760-hour result
 |---|---|
 | ![Synthetic month 7](examples/previews/v0.2.0/month_7.png) | ![Synthetic full year](examples/previews/v0.2.0/year_1.png) |
 
-See [the original twelve monthly charts / 原月图](docs/MONTHLY_GALLERY.md), [the three-year final-year monthly charts / 三年度末年月图](docs/FULL_HORIZON_GALLERY.md), [complete GA–DP synthetic case / 完整案例与算法对比](docs/CASE_STUDY.md), [user guide / 使用说明](docs/USER_GUIDE.md) and [roadmap / 计划](docs/ROADMAP.md).
+See [the original twelve monthly charts / 原月图](docs/MONTHLY_GALLERY.md), [the three-year final-year monthly charts / 三年度末年月图](docs/FULL_HORIZON_GALLERY.md), [complete GA–DP synthetic case and 80-run seed sensitivity / 完整案例与80次随机种子对比](docs/CASE_STUDY.md), [user guide / 使用说明](docs/USER_GUIDE.md) and [roadmap / 计划](docs/ROADMAP.md).
 
 Normal wind and PV are solid colors; curtailment uses the matching color with diagonal hatching. Storage charging is shown below zero on the same stack chart, and the magenta load line is deliberately prominent. 正常风光采用纯色，弃风弃光使用同色斜线；储能充电在同一图的零线下方，洋红负荷线加粗。月度未用水量没有逐时弃水解释，因此不绘制逐时弃水色块。
 

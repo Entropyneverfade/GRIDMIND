@@ -91,6 +91,21 @@ Gurobi 优化的是预先经8760小时规则模拟计算的**阶段路径**，�
 
 本小算例的 0% 差距不意味着两种方法普遍等价：GA 受初代、种群和停止条件影响；DP 状态数随候选数按 \(2^{|J|}\) 增长，阶段转移的朴素枚举约为 \(3^{|J|}\)。Both methods inherit the same deterministic single-region operation assumptions. In this release the DP path is capped at eight candidate bits in the desktop application to keep state enumeration reviewable.
 
+### 有限搜索预算与随机种子 / Limited-budget seed sensitivity
+
+为检查上述0%差距是否依赖初代和搜索预算，另在**同一张**三年度768行8760小时阶段费用表上运行4组预算，每组固定随机种子1–20。两位精英、交叉率0.85、逐位变异率0.045、最小1代及停滞5代在四组中相同。每条GA路径的阶段费用由公开全状态表独立重算。The study changes population size and maximum generations together, so it cannot isolate either factor's individual causal effect.
+
+| 种群 / Population | 最多代数 / Max generations | 20种子达到DP最优 / Hits | 平均相对差距 / Mean gap | 最大相对差距 / Max gap |
+|---:|---:|---:|---:|---:|
+| 8 | 4 | 1/20 | 42.12% | 151.75% |
+| 10 | 6 | 1/20 | 36.35% | 151.75% |
+| 12 | 12 | 20/20 | 0.00% | 0.00% |
+| 64 | 80 | 20/20 | 0.00% | 0.00% |
+
+这一变化主要受**当前Gen=0种子截断顺序**影响：先放全不建/全建，再按“末年→首年、项目位序”放单项目建设种子，种群填满后余下种子不进入初代。种群12已容纳本例“次年只建燃气”的最优种子，所以20次均在Gen=0达到最优；种群8与10的初代没有该种子，仍各有1个随机种子经遗传搜索找到最优。This is an implementation-specific search-budget diagnostic, not a claim that a population of 12 is generally sufficient or that GA matches DP on other systems.
+
+80条最终路径全部满足阶段可行性和建设单调性；涉及的59个不同“年–状态”又独立重跑8760小时，最大功率平衡残差为 \(2.84\times10^{-14}\) MW、最大储能方程残差为 \(3.55\times10^{-15}\) MWh。结果见[逐种子CSV](../examples/results/v0.2.4/ga_sensitivity_seeds.csv)、[预算汇总CSV](../examples/results/v0.2.4/ga_sensitivity_summary.csv)和[验收记录](../examples/results/v0.2.4/ga_sensitivity_audit.json)。DP/Gurobi证明的是此有限枚举问题在既定运行规则下的路径最优；GA的命中比例是这20个合成随机种子的观察值。The cost-table equality and all 80 discounted path totals are independently checked by `examples.verify_ga_sensitivity`.
+
 ## 4. 图、表与复现 / Figures, tables and reproduction
 
 全年图保留 8,760 原始小时，但细节请查看 [12 张自然月图](MONTHLY_GALLERY.md)。每月标注该月有真实缺供时的最大缺供日；若无缺供而有备用不足，则标注最大备用不足日；两者均无时标注净负荷峰值日，另标出最大弃电日。No zero-shortage interval is mislabeled as a shortage event.
@@ -103,6 +118,10 @@ python -m examples.verify_full_case --output synthetic_ga/exhaustive_audit.json
 python -m examples.synthetic_dynamic_case --output synthetic_ga_dp --origin-figures
 python -m examples.synthetic_dynamic_case --output synthetic_ga_dp_full --full-horizon --origin-figures
 python -m examples.verify_dynamic_case --output synthetic_ga_dp_full
+python -m examples.synthetic_ga_sensitivity --output synthetic_ga_sensitivity
+python -m examples.verify_ga_sensitivity --output synthetic_ga_sensitivity --reference-states synthetic_ga_dp_full/tables/all_stage_states.csv
+# 也可直接验收仓库附带的合成结果，无需重跑768个年度状态
+python -m examples.verify_ga_sensitivity --output examples/results/v0.2.4 --reference-states examples/results/v0.2.4/full_horizon_all_states.csv
 python gridmind_app/main.py --export-monthly-views synthetic_ga_dp_full/final_year synthetic_ga_dp_full/figures/monthly_views
 python gridmind_app/main.py --export-monthly-views synthetic_ga synthetic_months
 ```

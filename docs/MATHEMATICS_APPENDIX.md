@@ -221,3 +221,16 @@ F_3(2)&=F_2(2)+\frac{153{,}276{,}393.99509826}{1.07^2}
 最后一式用程序未舍入数值复算；上式中间显示的小数位仅为便于阅读，最终验收以[阶段原值CSV](../examples/results/v0.2.4/full_horizon_stages.csv)为准。Bellman和独立Gurobi状态MILP的目标同为369,286,121.9412637元。GA按年度编码24位染色体，其每一组8位折叠为累计状态，并只查询相同的 \(c_t(s)\) 表；固定种子运行得到同一路径，目标相差 \(5.96\times10^{-8}\) 元，为浮点加法顺序所致。The cent-level comparison gap is zero; no general GA optimality claim follows.
 
 全状态费用表共有 \(3\cdot2^8=768\) 行。对于所选路径，每年独立回算逐时平衡、储能状态 \(E_{t+1}-E_t-\eta_{ch}P_{ch}+P_{dis}/\eta_{dis}\)、水电月预算 \(\sum_{h\in m}P^{hydro}_h\le B_m\)，同时核对CSV与工作簿的阶段费用。公开[验收结果](../examples/results/v0.2.4/full_horizon_verification.json)给出最大残差与八类实际电量表。These are implementation consistency checks for the declared single-region rule model; they do not establish network security or stochastic adequacy.
+
+### GA预算比较的统计口径 / GA budget comparison metrics
+
+令第 \(k\) 个固定随机种子的GA最终路径为 \(s^{(k)}_t\)，与DP共用已评价的阶段费 \(c_t(s)\)。不读取GA自报目标，而由阶段费用表独立求
+
+\[
+J_k=\sum_{t=1}^{3}\frac{c_t(s^{(k)}_t)}{(1.07)^{t-1}},\qquad
+g_k=\frac{J_k-J^*}{J^*},\qquad
+H=\sum_{k=1}^{20}\mathbf1[g_k\le10^{-10}],\quad
+\overline g=\frac1{20}\sum_{k=1}^{20}g_k.
+\]
+
+这里 \(J^*=369{,}286{,}121.9412637\) 元是同表Bellman/Gurobi目标；\(H\) 是20个预先声明的种子中达到数值最优的次数，\(\overline g\) 是平均相对差距，最大差距为 \(\max_k g_k\)。由于四组同时改变种群数和最多代数，且小种群截断末年优先排列的单项目初代种子，这些指标只说明本程序在此合成算例下的预算敏感性。The observed hit rate is not a confidence interval or an algorithm-wide success probability; no runtime ranking is inferred from table lookups versus 8,760-hour simulations.
