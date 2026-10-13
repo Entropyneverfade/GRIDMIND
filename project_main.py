@@ -43,12 +43,14 @@ def _stage_input_hash(case):
 def execute(source: Path, year: int, costs: Path, output: Path, *,
             plan=True, figures=True, population=12, generations=12, seed=1,
             progress=None, algorithm="ga", previous_load_factor=0.95,
-            stage_input_mode="source"):
-    """数据采集→选择GA或双年度DP→最终年8760h模拟→表/图存档。"""
+            stage_input_mode="source", planning_horizon="pair"):
+    """数据采集→选择GA或年度DP→最终年8760h模拟→表/图存档。"""
     if algorithm not in {"ga", "dp"}:
         raise ValueError("规划算法只能是ga或dp")
     if stage_input_mode not in {"source", "scaled"}:
         raise ValueError("动态规划阶段输入只能选择年度源库或负荷系数情景")
+    if planning_horizon not in {"pair", "full"}:
+        raise ValueError("动态规划范围只能是相邻双年度或完整年度序列")
     case = load_project_case(source, year, costs)
     if plan and algorithm == "dp" and not case.candidates:
         raise ValueError("动态规划没有候选项目；可改选仅模拟存量系统")
@@ -59,25 +61,37 @@ def execute(source: Path, year: int, costs: Path, output: Path, *,
     exogenous_projects = ()
     if plan and algorithm == "dp" and case.candidates:
         if year <= case.base_year + 1:
-            raise ValueError("双年度动态规划的目标年须至少比基年晚2年，避免在基年预建候选项目")
+            raise ValueError("动态规划的目标年须至少比基年晚2年，避免在基年预建候选项目")
         if stage_input_mode == "scaled" and not 0 < previous_load_factor <= 1:
             raise ValueError("前一年负荷系数须在(0,1]内")
+        if planning_horizon == "full" and stage_input_mode != "source":
+            raise ValueError("完整年度序列必须读取各年度源库，不能用单一负荷系数伪造多年输入")
+        stage_cases = []
         if stage_input_mode == "source":
-            # 逐年库提供本地负荷、外送、风光、水文及有效容量；终期候选位由规划器决定。
-            # 仅当年出现而终期没有的计划增量作为外生年度投运并付等年值费用。
-            annual_source = load_project_case(source, year - 1, costs)
+            # 从基年下一年到终期逐年构造阶段；双年度模式只取终期前一年。
+            # 各年曲线、有效存量取本年库，终期候选位仍是统一的0/1决策。
+            stage_years = (range(case.base_year + 1, year)
+                           if planning_horizon == "full" else (year - 1,))
             terminal_ids = {plant.station_id for plant in case.candidates}
-            exogenous_projects = tuple(plant for plant in annual_source.candidates
-                                       if plant.station_id not in terminal_ids)
-            preceding = align_stage_case(case, annual_source)
+            exogenous = []
+            for stage_year in stage_years:
+                annual_source = load_project_case(source, stage_year, costs)
+                # 终期状态位之外的计划增量是该年的外生供给与等年值费用。
+                exogenous.extend((stage_year, plant) for plant in annual_source.candidates
+                                 if plant.station_id not in terminal_ids)
+                stage_cases.append(align_stage_case(case, annual_source))
+            exogenous_projects = tuple(exogenous)
         else:
             # 缺少独立年度预测时，用户可显式用目标年曲线构造负荷情景。
-            preceding = replace(case, target_year=year - 1,
-                                domestic_load_mw=tuple(previous_load_factor * value
-                                                       for value in case.domestic_load_mw))
+            stage_cases.append(replace(
+                case, target_year=year - 1,
+                domestic_load_mw=tuple(previous_load_factor * value
+                                       for value in case.domestic_load_mw)))
+        stage_cases.append(case)
+        stage_cases = tuple(stage_cases)
         if progress:
-            progress("动态规划：正在评价双年度投运状态与全年运行")
-        result = solve_stage_planning((preceding, case), progress=progress)
+            progress(f"动态规划：正在评价{len(stage_cases)}个年度投运状态与全年运行")
+        result = solve_stage_planning(stage_cases, progress=progress)
         # GA在已经审计的同一年度状态费用表上搜索，不重算或替换8760小时模型。
         comparison_settings = GASettings(population_size=population,
                                          max_generations=generations,
@@ -85,10 +99,10 @@ def execute(source: Path, year: int, costs: Path, output: Path, *,
                                          stall_generations=4, elite_count=1,
                                          crossover_rate=0.8, mutation_rate=0.07,
                                          seed=seed)
-        ga_comparison = compare_ga_on_stages((preceding, case), result.evaluations,
+        ga_comparison = compare_ga_on_stages(stage_cases, result.evaluations,
                                              result.discount_rate, comparison_settings)
         if progress:
-            progress("已完成同口径双年度GA与DP对照")
+            progress("已完成同口径多年度GA与DP对照")
         state = result.stages[-1].state
         chromosome = tuple((state >> i) & 1 for i in range(len(case.candidates)))
     elif plan and case.candidates:
@@ -121,21 +135,31 @@ def execute(source: Path, year: int, costs: Path, output: Path, *,
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         manifest["planning_algorithm"] = "dynamic_programming"
         manifest["stage_input_mode"] = stage_input_mode
+        manifest["planning_horizon"] = planning_horizon
         manifest["stage_input_sha256"] = {
-            str(preceding.target_year): _stage_input_hash(preceding),
-            str(case.target_year): _stage_input_hash(case)}
+            str(stage.target_year): _stage_input_hash(stage) for stage in stage_cases}
         if stage_input_mode == "source":
-            # 终期清单原有基年/目标年哈希；补入前一年源工作簿以支持阶段复算。
-            workbook = Path(source) / str(year - 1) / f"{year - 1}.xlsx"
-            manifest["source_workbook_sha256"][str(year - 1)] = hashlib.sha256(
-                workbook.read_bytes()).hexdigest()
-            manifest["stage_source_warnings"] = list(preceding.warnings)
+            # 终期清单原有基年/目标年哈希；补入所有中间年源工作簿以支持阶段复算。
+            for stage in stage_cases[:-1]:
+                workbook = Path(source) / str(stage.target_year) / f"{stage.target_year}.xlsx"
+                manifest["source_workbook_sha256"][str(stage.target_year)] = hashlib.sha256(
+                    workbook.read_bytes()).hexdigest()
+            manifest["stage_source_warnings"] = {
+                str(stage.target_year): list(stage.warnings) for stage in stage_cases[:-1]}
         if stage_input_mode == "scaled":
             manifest["previous_load_factor"] = previous_load_factor
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
                                  encoding="utf-8")
     else:
         write_project_report(case, result, simulation, output, make_figures=figures)
+    if plan and case.candidates:
+        # 同一随机种子只有连同种群/代数才可复现；DP中的GA对照也使用这组三参数。
+        manifest_path = Path(output) / "run_manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["ga_settings"] = {"population": population,
+                                   "generations": generations, "seed": seed}
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+                                 encoding="utf-8")
     if progress:
         progress("完成：" + str(output))
     return case, result, simulation, output
@@ -156,6 +180,7 @@ def main():
     parser.add_argument("--algorithm", choices=("ga", "dp"), default="ga")
     parser.add_argument("--previous-load-factor", type=float, default=0.95)
     parser.add_argument("--stage-input-mode", choices=("source", "scaled"), default="source")
+    parser.add_argument("--planning-horizon", choices=("pair", "full"), default="pair")
     args = parser.parse_args()
     output = args.output or ROOT / "runs" / f"scenario_{args.year}_{datetime.now():%Y%m%d_%H%M%S}"
     case, result, simulation, destination = execute(args.source, args.year, args.costs, output,
@@ -166,7 +191,8 @@ def main():
                                                   seed=args.seed, progress=print,
                                                   algorithm=args.algorithm,
                                                   previous_load_factor=args.previous_load_factor,
-                                                  stage_input_mode=args.stage_input_mode)
+                                                  stage_input_mode=args.stage_input_mode,
+                                                  planning_horizon=args.planning_horizon)
     if args.algorithm == "dp" and result is not None:
         selected = result.stages[-1].state
         print("规划方案:", "".join(str((selected >> i) & 1) for i in range(len(case.candidates))))

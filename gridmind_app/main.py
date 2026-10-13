@@ -12,7 +12,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-APP_VERSION = "0.2.3"
+APP_VERSION = "0.2.4"
 
 # 直接运行本文件或单文件EXE时，让窗口入口可导入同级算法包。
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -201,7 +201,9 @@ def launch_app(smoke=False):
     source_record = user_folder() / "last_source.txt"
     last_source = source_record.read_text(encoding="utf-8").strip() if source_record.exists() else ""
     source = tk.StringVar(value=last_source)
-    costs = tk.StringVar(value=str(prepare_cost_file()))
+    # 后台窗口预检只读取内置默认参数，不在公开源码目录生成用户数据文件。
+    costs = tk.StringVar(value=str(resource("input/project_costs.csv") if smoke else
+                             prepare_cost_file()))
     year = tk.StringVar(value="2029")
     population = tk.StringVar(value="12")
     generations = tk.StringVar(value="12")
@@ -244,7 +246,8 @@ def launch_app(smoke=False):
     method_options.grid(row=5, column=0, columnspan=3, sticky="w", pady=(0, 8))
     ttk.Label(method_options, text="规划方法").pack(side="left")
     ttk.Combobox(method_options, textvariable=algorithm,
-                 values=("遗传算法", "动态规划（双年度）"), state="readonly",
+                 values=("遗传算法", "动态规划（双年度）", "动态规划（全规划年）"),
+                 state="readonly",
                  width=20).pack(side="left", padx=(5, 12))
     ttk.Label(method_options, text="阶段输入").pack(side="left")
     ttk.Combobox(method_options, textvariable=stage_source,
@@ -268,6 +271,9 @@ def launch_app(smoke=False):
             if (plan and algorithm.get().startswith("动态") and
                     stage_source.get() == "系数情景" and not 0 < factor <= 1):
                 raise ValueError("动态规划前一年负荷系数必须在(0,1]内")
+            if (plan and "全规划年" in algorithm.get() and
+                    stage_source.get() != "年度源库"):
+                raise ValueError("全规划年动态规划须读取各年度源库，不能使用单一负荷系数")
         except ValueError as error:
             messagebox.showerror("输入错误", str(error), parent=root)
             return
@@ -281,6 +287,7 @@ def launch_app(smoke=False):
         make_figures = bool(figures.get())  # Tk变量只在主线程取值。
         method = "dp" if algorithm.get().startswith("动态") else "ga"
         stage_mode = "source" if stage_source.get() == "年度源库" else "scaled"
+        horizon = "full" if "全规划年" in algorithm.get() else "pair"
 
         def worker():
             """后台执行GA和全年模拟；Origin也仅在后台独立进程中运行。"""
@@ -289,7 +296,7 @@ def launch_app(smoke=False):
                     plan=plan, figures=make_figures, population=pop, generations=gen,
                     seed=random_seed, progress=lambda message: messages.put(("status", message)),
                     algorithm=method, previous_load_factor=factor,
-                    stage_input_mode=stage_mode)
+                    stage_input_mode=stage_mode, planning_horizon=horizon)
                 messages.put(("done", (folder, result, simulation.summary)))
             except Exception as error:
                 messages.put(("error", str(error)))
@@ -413,8 +420,13 @@ def main():
     parser.add_argument("--batch-simulate-only", action="store_true")
     parser.add_argument("--batch-skip-figures", action="store_true")
     parser.add_argument("--batch-algorithm", choices=("ga", "dp"), default="ga")
+    # 批处理与窗口共用遗传参数；DP模式也用它们执行同阶段费用表上的GA对照。
+    parser.add_argument("--batch-population", type=int, default=12)
+    parser.add_argument("--batch-generations", type=int, default=12)
+    parser.add_argument("--batch-seed", type=int, default=1)
     parser.add_argument("--batch-previous-load-factor", type=float, default=0.95)
     parser.add_argument("--batch-stage-input-mode", choices=("source", "scaled"), default="source")
+    parser.add_argument("--batch-planning-horizon", choices=("pair", "full"), default="pair")
     parser.add_argument("--batch-synthetic-dynamic", type=Path,
                         help="用EXE复现公开合成双年度GA/DP对比案例")
     parser.add_argument("--gurobi-check", action="store_true", help=argparse.SUPPRESS)
@@ -465,8 +477,12 @@ def main():
                     plan=not args.batch_simulate_only,
                     figures=not args.batch_skip_figures,
                     algorithm=args.batch_algorithm,
+                    population=args.batch_population,
+                    generations=args.batch_generations,
+                    seed=args.batch_seed,
                     previous_load_factor=args.batch_previous_load_factor,
-                    stage_input_mode=args.batch_stage_input_mode)
+                    stage_input_mode=args.batch_stage_input_mode,
+                    planning_horizon=args.batch_planning_horizon)
         except Exception as error:
             output.mkdir(parents=True, exist_ok=True)
             (output / "batch_error.txt").write_text(str(error), encoding="utf-8")

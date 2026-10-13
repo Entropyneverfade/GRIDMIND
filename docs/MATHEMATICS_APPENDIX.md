@@ -17,7 +17,8 @@
 
 \[
 C(x)=C_{\rm fixed}(x)+C_{\rm variable}(x),\qquad
-C_{\rm fixed}(x)=\sum_{j\in J}x_j a_j,
+C_{\rm fixed}(x)=\sum_{i\in I}a^{\rm existing}_{i}
++\sum_{j\in J}x_j a_j,
 \]
 
 \[
@@ -27,7 +28,7 @@ C_{\rm variable}(x)=\sum_t\Delta t\left[
 +\sum_{s\in\mathcal S}c_s p_{s,t}^{\rm dis}\right].
 \]
 
-\(\mathcal D\) includes coal, gas, biomass and conventional hydro; \(\mathcal R\) includes wind and PV; \(\mathcal S\) includes pumped and battery storage. 弃电不计为已交付发电，储能只对放电量计输入表中的单位变动费。年化固定费以资本回收系数 \(CRF=r(1+r)^n/[(1+r)^n-1]\) 建立可编辑试算值；输入成本不是项目报价。
+\(I\) 为所评年度的既有记录；基年存量的输入年化费为零，若其中合入年度外生计划增量，其非零等年值必须计入首项。The existing-record term carries any annual exogenous commitment already merged into the stage input. \(\mathcal D\) includes coal, gas, biomass and conventional hydro; \(\mathcal R\) includes wind and PV; \(\mathcal S\) includes pumped and battery storage. 弃电不计为已交付发电，储能只对放电量计输入表中的单位变动费。年化固定费以资本回收系数 \(CRF=r(1+r)^n/[(1+r)^n-1]\) 建立可编辑试算值；输入成本不是项目报价。
 
 ## 3. 逐站可再生能源与弃电 / Station-level renewable availability
 
@@ -160,7 +161,7 @@ Current scope: one region, deterministic hourly profiles, fixed hourly exports, 
 
 与单年度 \(x_i\in\{0,1\}\) 不同，多年度状态 \(s_t\in\{0,1\}^{|J|}\) 表示第 \(t\) 个规划年末已投运候选集合。阶段建设决策 \(u_t=s_t-s_{t-1}\ge0\) 按位理解，已投运机组不会在此简化模型中退役。The first state starts from no optional projects, and each transition may add projects but not remove them.
 
-阶段 \(t\) 对每个状态运行自身的 8,760 小时负荷、电源及储能模拟，得到实际发电变动费 \(C_t^{op}(s)\)。已投运项目的年化建设费为 \(C_t^{ann}(s)=\sum_i s_i A_i\)，其中 \(A_i\) 是元/年的等年值。因此阶段费 \(c_t(s)=C_t^{ann}(s)+C_t^{op}(s)\)，并只让满足缺供、备用、过剩和容量硬约束的状态参加递推。Every annual scenario has its own feasible-state set \(\mathcal F_t\).
+阶段 \(t\) 对每个状态运行自身的 8,760 小时负荷、电源及储能模拟，得到实际发电变动费 \(C_t^{op}(s)\)。阶段固定费为 \(C_t^{ann}(s)=\sum_{i\in I_t}a^{\rm existing}_{i,t}+\sum_j s_j A_j\)：第一项含已合入年度既有记录的外生计划等年值，第二项是已投运可选项目的元/年等年值。因此阶段费 \(c_t(s)=C_t^{ann}(s)+C_t^{op}(s)\)，并只让满足缺供、备用、过剩和容量硬约束的状态参加递推。The first term includes annual exogenous commitments already merged into existing records; the second charges every selected candidate in each year of service. Every annual scenario has its own feasible-state set \(\mathcal F_t\).
 
 以首个规划年为基准、贴现率 \(r\)，顺序 Bellman 递推写为
 
@@ -195,6 +196,8 @@ L_t(h)=P^{peak}_t f^{load}_t(h),\qquad
 A^{wind}_{i,t}(h)=P^{design}_i f^{wind}_{i,t}(h).
 \]
 
-目标年定义的候选项目 \(P^{design}_i\)、身份和状态位 \(s_{t,i}\) 在两个阶段保持相同；各年度**既有机组**容量 \(P^{old}_{j,t}\) 必须取该年度源库，不能把终期存量提前放入上一年。若年度源库存在终期候选位之外的计划增量，记其容量 \(P^{exo}_{j,t}\) 和等年值费用 \(A^{exo}_{j,t}\)；它是该年度**外生给定**的供给，不占用终期可选位，也不会自动继承到下一年。因此 \(P_{j,t}=P^{old}_{j,t}+P^{exo}_{j,t}+s_{t,j}P^{design}_j\)，阶段固定费改为 \(C_t^{ann}(s)=\sum_i s_{t,i}A_i+\sum_j A^{exo}_{j,t}\)。同站最低出力比例按容量加权，使聚合前后的最低出力MW相同。常规水电月预算为 \(B_{j,m,t}=P_{j,t}H_m u_h f^{hydro}_{j,m,t}\)。Existing capacity and operating profiles are year specific; terminal project design and binary identity remain common. Source-year-only projects are fixed annual scenario inputs with explicit costs, rather than endogenous DP decisions. Missing annual renewable or hydro records cause an error instead of reusing terminal weather.
+目标年定义的候选项目 \(P^{design}_i\)、身份和状态位 \(s_{t,i}\) 在所有阶段保持相同；各年度**既有机组**容量 \(P^{old}_{j,t}\) 必须取该年度源库，不能把终期存量提前放入上一年。若年度源库存在终期候选位之外的计划增量，记其容量 \(P^{exo}_{j,t}\) 和等年值费用 \(A^{exo}_{j,t}\)；它是该年度**外生给定**的供给，不占用终期可选位，也不会自动继承到下一年。因此 \(P_{j,t}=P^{old}_{j,t}+P^{exo}_{j,t}+s_{t,j}P^{design}_j\)，阶段固定费为 \(C_t^{ann}(s)=\sum_j s_{t,j}A_j+\sum_i A^{exo}_{i,t}\)；在代码中第二项已并入年度既有记录的 `annual_cost_yuan`，不可再额外相加。同站最低出力比例按容量加权，使聚合前后的最低出力MW相同。常规水电月预算为 \(B_{j,m,t}=P_{j,t}H_m u_h f^{hydro}_{j,m,t}\)。Existing capacity and operating profiles are year specific; terminal project design and binary identity remain common. Source-year-only projects are fixed annual scenario inputs with explicit costs, rather than endogenous DP decisions. Missing annual renewable or hydro records cause an error instead of reusing terminal weather.
+
+默认双年度取 \(t=T-1,T\)；可选全规划年取基年之后连续 \(t=1,\dots,T\)。后一模式必须有每年独立源库，不能以单个负荷系数冒充整段历史；所有模式仍由相同 Bellman 递推和 Gurobi 0/1 路径模型求解。若有 \(n\) 个候选位和 \(T\) 个阶段，全年状态评价数为 \(T2^n\)，朴素子集转移复杂度约 \(T3^n\)。Full-horizon planning changes the number of annual input stages, not the meaning of the state or the underlying hourly operation model.
 
 可选“系数情景”设 \(L_{t-1}(h)=\alpha L_t(h)\)，并复用目标年的天气；它是明确的人为情景，\(\alpha\in(0,1]\)。The published GA–DP synthetic comparison deliberately uses this controlled scenario with \(\alpha=0.82\), so both algorithms query identical stage-cost tables. Neither input mode currently models project construction lead times or commissioning eligibility.

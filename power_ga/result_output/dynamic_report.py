@@ -35,10 +35,10 @@ def write_dynamic_report(result, case, output: Path, load_factor: float,
     for row in rows:
         sheet.append(row)
     # 源库独有项目不属于DP可选位；单列容量与年费，避免被阶段汇总掩盖。
-    exogenous_rows = [(result.stages[0].year, plant.station_id, plant.name,
+    exogenous_rows = [(stage_year, plant.station_id, plant.name,
                        TECH_LABELS[plant.technology], plant.capacity_mw,
                        plant.annual_cost_yuan)
-                      for plant in exogenous_projects]
+                      for stage_year, plant in exogenous_projects]
     if exogenous_rows:
         headers_exo = ("规划年", "电站ID", "电站", "技术", "外生投运容量MW", "年化资本费元")
         exo_sheet = book.create_sheet("年度外生计划")
@@ -80,6 +80,33 @@ def write_dynamic_report(result, case, output: Path, load_factor: float,
             compare_sheet.append(row)
         with (tables / "ga_dp_comparison.csv").open("w", encoding="utf-8-sig", newline="") as stream:
             csv.writer(stream).writerows(comparisons)
+        if len(ga_path) != len(result.stages):
+            raise ValueError("GA建设路径与动态规划阶段数不一致")
+        # GA与DP查同一状态费用表；逐年折现费为c_t(s)/(1+r)^t。
+        stage_headers = ("规划年", "GA累计状态", "DP累计状态", "GA阶段可行",
+                         "GA年度费用元", "DP年度费用元", "GA折现费用元",
+                         "DP折现费用元", "GA减DP折现差元")
+        stage_rows = []
+        for index, (stage, ga_state) in enumerate(zip(result.stages, ga_path)):
+            item = result.evaluations[index][ga_state]
+            ga_discounted = item.total_cost_yuan / (1 + result.discount_rate) ** index
+            stage_rows.append((stage.year, ga_state, stage.state, item.feasible,
+                               item.total_cost_yuan, stage.annual_cost_yuan,
+                               ga_discounted, stage.discounted_cost_yuan,
+                               ga_discounted - stage.discounted_cost_yuan))
+        # 可行GA路径的逐年费用必须加总回GA报告值，否则说明编码或折现口径漂移。
+        if ga_feasible and abs(sum(row[6] for row in stage_rows) -
+                               ga_result.best.total_cost_yuan) > 0.01:
+            raise AssertionError("GA逐年折现费与总费用不一致")
+        stage_sheet = book.create_sheet("逐年GA与DP")
+        stage_sheet.append(stage_headers)
+        for row in stage_rows:
+            stage_sheet.append(row)
+        with (tables / "ga_dp_stage_comparison.csv").open(
+                "w", encoding="utf-8-sig", newline="") as stream:
+            writer = csv.writer(stream)
+            writer.writerow(stage_headers)
+            writer.writerows(stage_rows)
         # 留存逐代可行个体与最优费用，方便判断GA何时达到或未达到DP下界。
         with (tables / "multiyear_ga_history.csv").open("w", encoding="utf-8-sig", newline="") as stream:
             writer = csv.writer(stream)
@@ -87,7 +114,7 @@ def write_dynamic_report(result, case, output: Path, load_factor: float,
             writer.writerows((h.generation, h.best_cost_yuan, h.best_feasible,
                               h.feasible_count, h.unique_count) for h in ga_result.history)
     notes = book.create_sheet("模型口径")
-    description = ("前一年读取年度源库的存量、负荷、外送、风光和水文；仅当年出现的非终期增量按外生计划计费"
+    description = ("各阶段读取对应年度源库的存量、负荷、外送、风光和水文；仅当年出现的非终期增量按外生计划计费"
                    if stage_input_mode == "source" else
                    "前一年复用目标年风光曲线并缩放负荷；这是情景预测，不是年度源库重放")
     for item in (("项目", "说明"),

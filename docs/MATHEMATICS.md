@@ -13,11 +13,12 @@
 对候选项目 \(j\)，\(x_j\in\{0,1\}\) 表示是否建设，\(a_j\) 是年化固定费用，\(g_{k,t}\) 是技术 \(k\) 在小时 \(t\) 的实际发电量，\(c_k\) 是变动费用：
 
 \[
-\min_x C(x)=\sum_j a_jx_j+\sum_{t=0}^{8759}\sum_k c_k g_{k,t}(x)\Delta t,
+\min_x C(x)=\sum_{i\in I}a_i^{\rm existing}+\sum_j a_jx_j
++\sum_{t=0}^{8759}\sum_k c_k g_{k,t}(x)\Delta t,
 \qquad \Delta t=1\,\mathrm{h}.
 \]
 
-The GA uses feasibility-first ranking: feasible chromosomes are ordered by \(C\); infeasible chromosomes are ordered by normalized constraint violation, then by \(C\). GA 的选择、交叉、变异和精英保留只搜索建设染色体，运行模拟负责逐时评价。
+\(I\) 为本年度既有记录；其基年存量年化费为零，只有并入年度源库的外生计划增量可能带来非零等年值。The existing-record term is zero for the base stock and carries any annual exogenous commitment that was merged into that year's records. The GA uses feasibility-first ranking: feasible chromosomes are ordered by \(C\); infeasible chromosomes are ordered by normalized constraint violation, then by \(C\). GA 的选择、交叉、变异和精英保留只搜索建设染色体，运行模拟负责逐时评价。
 
 ## 2. 逐时功率平衡 / Hourly power balance
 
@@ -92,3 +93,5 @@ F_t(s)=\frac{c_t(s)}{(1+r)^{t-1}}+\min_{p\subseteq s}F_{t-1}(p).
 \]
 
 Gurobi 用每年一个可行状态的0/1模型独立校验递推最优值。年度源库模式以各年度存量装机及曲线计算供给；仅中间年度出现、终期候选位之外的计划项目作为该年外生容量，年化费用加入 \(c_t(s)\)。The state cost includes annualized candidate and exogenous costs plus actual hourly variable cost; physical feasibility is enforced before a state enters the recursion. See the [complete derivation](MATHEMATICS_APPENDIX.md#12-多年度动态规划--multi-year-dynamic-programming) and [synthetic comparison](CASE_STUDY.md).
+
+默认取相邻双年度；全规划年选项取基年之后至终期的每个年度源库，两个选项共用同一递推式。For \(T\) annual stages and \(n\) candidate bits, the engine evaluates \(T2^n\) annual operating states before path optimization.

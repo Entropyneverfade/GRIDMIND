@@ -1,5 +1,13 @@
 # Development progress / 开发进度
 
+## 2026-10-14 — Stage 0.2.4 / 全规划年源库阶段
+
+- 新增双年度/全规划年可选范围；全规划年逐年读取基年之后至终期的年度库，并拒绝用单一负荷系数伪造多年输入。Added an optional full annual-source horizon alongside the existing two-year mode.
+- 所有阶段保持终期候选位一致；年度独有计划项目按对应年度列入外生容量和年化费用报表，Bellman、Gurobi与GA共用阶段费用。Exogenous annual commitments are reported by year, with the same stage-cost tables used by all three algorithms.
+- 阶段工作簿新增逐年GA/DP状态、可行性及折现费用对照页与CSV，并验证GA逐年费用能加总回其总目标。Added a per-year GA/DP cost comparison table with an objective reconciliation check.
+- EXE批处理新增种群、代数和随机种子参数，并将规划所用值写入运行清单；同输入但不同GA设置不能误称为算法随机失效。The packaged batch entry now accepts and records GA controls for reproducible source/EXE comparisons.
+- 三阶段已知答案与8760小时合成集成通过；本地多阶段源库通过逐年输入哈希、物理守恒和费用复核。Synthetic known-answer and local annual-stage audits passed; project-derived details remain private.
+
 ## 2026-10-14 — Stage 0.2.3 / 中间年度计划增量处理
 
 - 中间年度源库含有终期候选清单之外的计划增量时，按当年外生投运计入供给与年化费用，并在存档中警示；同站容量及最低出力按容量守恒聚合。Source-year-only planned increments are treated as exogenous for that year, charged annualized fixed cost, and explicitly warned; same-station capacity and minimum output are aggregated consistently.
