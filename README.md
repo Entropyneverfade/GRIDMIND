@@ -46,3 +46,5 @@ On Windows, `gridmind_app/build.ps1` uses PyInstaller to create `GRIDMIND.exe` w
 All included hourly profiles are synthetic. The editable technology-cost CSV contains benchmark-derived and explicitly assumed values; it is **not** a validated local project quote. No private regional or national project input, output table, result figure or project-specific metadata is distributed. 本仓库的逐时曲线仅为合成教学数据；成本表是可编辑试算参数，不能作为项目报价。私有项目数据及其结果不公开。
 
 Code and original documentation are provided under the [MIT License](LICENSE). Optional dependencies retain their own licenses. / 代码与原创文档采用 MIT 许可证，第三方依赖遵循各自许可证。
+
+For the verified development checkpoint, see [Stage report / 阶段成果](docs/PROGRESS_2026-10-13.md). / 当前已验证的开发状态、13项合成测试和适用边界见阶段报告。

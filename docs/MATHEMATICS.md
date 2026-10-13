@@ -45,14 +45,14 @@ The state is never reset at midnight or month boundaries. 年初按零库存开�
 
 ## 4. 常规水电月水量近似 / Monthly hydro budget
 
-当没有逐库来水和水头数据时，设置月预算 \(B_m\)，按小时正净负荷 \(w_t=\max(0,D_t-A_t^{wind}-A_t^{PV})\) 分配：
+当没有逐库来水和水头数据时，按月小时数 \(H_m\)、试算利用率 \(u_h=0.42\) 与输入月系数 \(f_m\) 设置预算 \(B_m=\overline P_h H_m u_h f_m\)，按小时正净负荷 \(w_t=\max(0,D_t-A_t^{wind}-A_t^{PV})\) 分配：
 
 \[
 h_t^{target}=\min(\overline P_h,\lambda_m w_t),\qquad
-\sum_{t\in m} h_t^{target}=\min(B_m,\overline P_h|m|).
+\sum_{t\in m} h_t^{target}\le\min(B_m,\overline P_h|m|).
 \]
 
-程序以二分法求 \(\lambda_m\)，实际出力同时受小时容量和月剩余预算限制。This transparent allocation is not a hydraulic cascade optimization.
+程序以二分法求 \(\lambda_m\)，若正净负荷时段不足以消纳月预算，差额作为未用预算报告；实际出力同时受小时容量和月剩余预算限制。This transparent allocation is not a hydraulic cascade optimization.
 
 ## 5. 规划可行性 / Planning feasibility
 
@@ -66,6 +66,10 @@ F(x)\ge (1+r)\max_t D_t^{domestic}-\epsilon_P.
 
 For this conservative baseline, \(F\) counts coal, gas, conventional hydro and biomass rated MW. Wind, PV and storage receive zero planning firm capacity until an independent capacity-credit study is supplied. This is **not** a probabilistic EENS, LOLE or ELCC calculation. 当前逐时备用短缺另列为诊断，不被偷偷当成概率风险指标。
 
-## 6. 边界 / Limitations
+## 6. 试算成本 / Benchmark cost assumptions
+
+年化资本费采用资本回收系数 \(CRF=r(1+r)^n/((1+r)^n-1)\)，再加固定运维；\(r\) 为折现率，\(n\) 为寿命。公开默认参数参考 [NLR Annual Technology Baseline 2025](https://atb.nlr.gov/electricity/2025/technologies)，汇率、燃料与部分技术值另列可编辑假设。This is a transparent benchmark, not a local procurement quote.
+
+## 7. 边界 / Limitations
 
 逐日开机与逐时经济顺序是规则近似；外送目前作为固定逐时需求，内部线路潮流未求解。The optional separate rolling optimization module is a finite-window model and must not be described as an annual global optimum. All cost parameters and hydrology utilization assumptions require local calibration before decision use.

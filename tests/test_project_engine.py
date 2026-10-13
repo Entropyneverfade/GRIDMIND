@@ -1,8 +1,11 @@
 """公开合成8760小时场景：核对新项目引擎的储能连续性和能量平衡。"""
 
 import unittest
+from itertools import product
 
+from power_ga.common.domain import GASettings
 from power_ga.data_collection.project_case import CasePlant, ProjectCase
+from power_ga.genetic_iteration.project_solver import evaluate_project, optimize_project
 from power_ga.operation_simulation.project_engine import simulate_project
 
 
@@ -37,6 +40,29 @@ class ProjectEngineTests(unittest.TestCase):
         self.assertLess(max(abs(row[-1]) for row in run.storage_hourly), 1e-7)
         self.assertTrue(all(h.storage_charge_mw * h.storage_discharge_mw < 1e-9
                             for h in run.hourly))
+
+    def test_project_ga_matches_complete_two_bit_enumeration(self):
+        """2位共4方案可穷举：只有新增煤电才满足可信容量，电池不应凭额定MW代替容量信用。"""
+        existing = (CasePlant(1, "ExistingCoal", "coal", 90, 0, 300, 0),)
+        candidates = (CasePlant(2, "NewCoal", "coal", 20, 0, 300, 1_000_000),
+                      CasePlant(3, "Battery", "battery", 10, 0, 0, 2_000_000,
+                                (), 2, 1, 0.81))
+        case = ProjectCase(2025, 2029, existing, candidates, (100.0,) * 8760,
+                           (0.0,) * 8760, 0.05, 0, (), "", "")
+        exhaustive = [evaluate_project(case, chromosome)
+                      for chromosome in product((0, 1), repeat=2)]
+        optimum = min(exhaustive, key=lambda item: item.sort_key())
+        self.assertEqual(optimum.chromosome, (1, 0))
+        self.assertFalse(next(item for item in exhaustive
+                              if item.chromosome == (0, 1)).feasible)
+        settings = GASettings(population_size=8, max_generations=8,
+                              min_generations=2, stall_generations=3,
+                              elite_count=1, crossover_rate=0.8,
+                              mutation_rate=0.10, seed=7)
+        result = optimize_project(case, settings)
+        self.assertEqual(result.best.chromosome, optimum.chromosome)
+        self.assertAlmostEqual(result.best.total_cost_yuan, optimum.total_cost_yuan)
+        self.assertTrue(result.best.feasible)
 
 
 if __name__ == "__main__":

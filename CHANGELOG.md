@@ -1,5 +1,15 @@
 # Development progress / 开发进度
 
+## 2026-10-13 — Stage 0.1.1 / 阶段版本
+
+- The Windows EXE was rebuilt with its original icon; a hidden-window startup check passed. / 带原创图标的Windows应用已重打包，后台窗口启动检查通过。
+- Added an independent 8,760-hour energy-balance and storage-state audit for local runs. No local result or database is published. / 加入本地完整年度输出的独立守恒复核，公开仓库不含项目数据或结果。
+- Added a fully synthetic two-bit project-GA case and checked its selected solution against all four feasible/infeasible combinations; 13 regression tests pass. / 新增完全合成的两位建设方案穷举对照，13项回归测试通过。
+- Expanded the mathematical model, benchmark-cost explanation and research-method notes. Ten journal records were verified and archived in a dedicated local Zotero collection. / 补充公式、试算成本口径及研究依据，十篇期刊题录已在本地专题收藏夹核对归档。
+- Scope remains deterministic single-region dispatch with approximate hydro and daily commitment. / 当前边界仍为确定性单区运行、水电月预算近似与逐日开机规则。
+
+See [the stage report](docs/PROGRESS_2026-10-13.md) for reproducibility and limits. / 可复核进度见阶段报告。
+
 ## 2026-10-13 — Initial public prototype / 首次公开研究原型
 
 - Added the separated desktop application and algorithm modules, plus an original Windows icon. / 分离桌面窗口与算法代码，加入原创图标。

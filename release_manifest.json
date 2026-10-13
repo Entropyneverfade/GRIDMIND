@@ -1,10 +1,11 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "files_sha256": {
-    "CHANGELOG.md": "83dc046b2c5dfcdb23eb4a4767f922ac8accbab471a81683eb9930efcdb08282",
+    "CHANGELOG.md": "0a52068137c3d97a9ba4a48943745327d2a8eddd7b1ed8d648b81a1ceb65be9e",
     "LICENSE": "90752cd67d2fbec0a65a0d172531178138bbb6a8a790e367572e8ec43c2bffcd",
-    "README.md": "ca77a301db7345d918d18c3a1d089843b529e29ab83aec93c89742534ed3ffdb",
-    "docs/MATHEMATICS.md": "67d6ce773d72e50a3887779b05e1e851291fd36ad6ffce7ed665b039f8efd2b5",
+    "README.md": "bbccc5f61cdbd83b42640f6e485543592d3823d2cf5009adffbdf9d4a49471fb",
+    "docs/MATHEMATICS.md": "2a4b5081339697a554682b5b257bd30814ca39b66dc96f1f6b4b02998bf0309c",
+    "docs/PROGRESS_2026-10-13.md": "72626575134d33f7785507821a18ff8c3e352660de449bb894ddf908b009b824",
     "examples/previews/v0.1.0/synthetic_dispatch_day.png": "27ed0698b154649f9ba8d7c1ec5793e4973585d3ad04193deb289557d2e3cbc0",
     "gridmind_app/__init__.py": "c7f2de1afe499491cf698b652fa570706b60f21a77565635356b011db040e906",
     "gridmind_app/assets/create_icon.py": "59d57e8fd7013ec6577f6d130586b80b63a17732fe3245dc84a97df724eda74e",
@@ -45,6 +46,6 @@
     "run_operation.py": "27f54bb54fc9964161604e92e0e9cade04a5038e39cbe8c39194c2ae3860eabf",
     "tests/test_engine.py": "0e631e2167eaaaa4ed9f40f67bb11f07b7153db0d945b6341327b2961960ec37",
     "tests/test_gurobi.py": "74c1f2a69349346194b4a245c4cde55a6f2becc199b427e32155c38862fe2ed8",
-    "tests/test_project_engine.py": "524e9f49c63eda28a4800514c77b28a055e822f2d77eed5db24306c8701bc632"
+    "tests/test_project_engine.py": "4f968fceee1ab4fe1c55fc1cd2711f31533f4cd37745001b0ff694e3ed3f5663"
   }
 }
