@@ -1,4 +1,4 @@
-# GRIDMIND应用打包入口；本文件只处理窗口与依赖，不修改算法模块。
+﻿# GRIDMIND应用打包入口；本文件只处理窗口与依赖，不修改算法模块。
 param([string]$PythonPath = 'python')
 $ErrorActionPreference = 'Stop'
 $app = Split-Path -Parent $MyInvocation.MyCommand.Path

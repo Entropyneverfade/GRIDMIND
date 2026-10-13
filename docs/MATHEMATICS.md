@@ -52,7 +52,7 @@ h_t^{target}=\min(\overline P_h,\lambda_m w_t),\qquad
 \sum_{t\in m} h_t^{target}\le\min(B_m,\overline P_h|m|).
 \]
 
-程序以二分法求 \(\lambda_m\)，若正净负荷时段不足以消纳月预算，差额作为未用预算报告；实际出力同时受小时容量和月剩余预算限制。This transparent allocation is not a hydraulic cascade optimization.
+程序以二分法求 \(\lambda_m\)，若正净负荷时段不足以消纳月预算，差额作为未用预算报告；整月 \(w_t=0\) 时 \(h_t^{target}=0\)，不强制耗尽水量。实际出力同时受小时容量和月剩余预算限制。The monthly budget is an upper bound: if positive net demand cannot use it, the remainder is reported as unused water rather than forced generation. This transparent allocation is not a hydraulic cascade optimization.
 
 ## 5. 规划可行性 / Planning feasibility
 

@@ -6,7 +6,7 @@ from itertools import product
 from power_ga.common.domain import GASettings
 from power_ga.data_collection.project_case import CasePlant, ProjectCase
 from power_ga.genetic_iteration.project_solver import evaluate_project, optimize_project
-from power_ga.operation_simulation.project_engine import simulate_project
+from power_ga.operation_simulation.project_engine import _hydro_target, simulate_project
 
 
 class ProjectEngineTests(unittest.TestCase):
@@ -77,6 +77,17 @@ class ProjectEngineTests(unittest.TestCase):
         self.assertAlmostEqual(run.summary["reserve_shortfall"], 0.0)
         self.assertAlmostEqual(run.hourly[0].hydro_mw, 0.0)
         self.assertGreater(run.hourly[0].gas_mw, 0.0)
+
+    def test_hydro_budget_is_upper_bound_with_zero_net_load(self):
+        """整月无正净负荷时不为用完来水而发电，其余月份仍可按需用水。"""
+        net = [0.0] * 8760
+        net[31 * 24] = 10.0  # 2月首小时留有正净负荷，检验非零月份仍调度。
+        budget = [5.0] * 12
+        target = _hydro_target(net, 20.0, budget, 2029)
+        self.assertEqual(len(target), 8760)
+        self.assertAlmostEqual(sum(target[:31 * 24]), 0.0)
+        self.assertAlmostEqual(target[31 * 24], 5.0, places=7)
+        self.assertAlmostEqual(sum(target), 5.0, places=7)
 
     def test_online_reserve_is_planning_feasibility_gate(self):
         """无缺供但仅余2MW备用、需3MW备用时，不能报告为可行规划。"""

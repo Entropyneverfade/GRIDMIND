@@ -99,8 +99,9 @@ def _renewable_availability(plants, kind):
 def _hydro_target(net_load, capacity_mw, monthly_budget, year):
     """水电月电量按净负荷高低分配：p_t=min(Pmax,λ·净负荷_t)。
 
-    二分求λ使Σ_t p_t=min(月水量预算,Pmax×月小时数)，是“削减月内净负荷
-    起伏”的透明近似；不声称代替逐库流量/水头/级联水力优化。
+    二分求λ使Σ_t p_t不超过月水量预算，是“削减月内净负荷起伏”的
+    透明近似。月预算是发电上限；无正净负荷时允许弃水，不强制发电。
+    本规则不声称代替逐库流量/水头/级联水力优化。
     """
     profile = []
     first = 0
@@ -111,7 +112,9 @@ def _hydro_target(net_load, capacity_mw, monthly_budget, year):
         if budget <= 0:
             profile.extend([0.0] * size)
         elif max(weights) <= 0:
-            profile.extend([budget / size] * size)
+            # w_t=0 对所有小时成立时，p_t=min(Pmax,λw_t)=0；剩余水量未用。
+            # 强制摊销预算会凭空制造发电与过剩，也违背月水量“上限”口径。
+            profile.extend([0.0] * size)
         else:
             low, high = 0.0, max(1.0, capacity_mw / min(v for v in weights if v > 0))
             # f(λ)=Σ min(Pmax,λw_t) 单调，60次二分达双精度。

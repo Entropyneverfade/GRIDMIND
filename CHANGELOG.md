@@ -1,5 +1,12 @@
 # Development progress / 开发进度
 
+## 2026-10-14 — Stage 0.1.4 / 水电月预算边界修正
+
+- Monthly hydro water is an energy upper bound. A month with no positive net load schedules zero hydro instead of forcing water through the turbine. / 月水量作为电量上限；整月没有正净负荷时不强制水电发电。
+- Added a synthetic cross-month regression case and checked the annual physical-balance suite again. / 增加跨月合成反例，并重新核验全年物理平衡测试。
+- Public equations now state the unused-water rule explicitly; external project data and outputs remain local. / 公开公式明确未用水量口径，外部项目数据和结果继续仅存本地。
+- The Windows build script now has a UTF-8 signature so Windows PowerShell 5.1 can parse its Chinese comments and strings; both PowerShell 5.1 and 7 built the EXE locally. / 打包脚本增加UTF-8签名，Windows PowerShell 5.1 与 7 均已在本机完成构建。
+
 ## 2026-10-14 — Stage 0.1.3 / 单文件应用验收
 
 - Bundled the Origin renderer in the Windows build and made dense annual PDF fallback run inside the EXE. / 将Origin脚本纳入打包，年度PDF备用封装不再依赖外部Python。

@@ -1,17 +1,18 @@
 {
-  "version": "0.1.3",
+  "version": "0.1.4",
   "files_sha256": {
-    "CHANGELOG.md": "9b841b44c0c1bf8412718a216879c916d2a59aaf36057793c00fa256f074d5b1",
+    "CHANGELOG.md": "05ad9d602033446f962a6f0640c98c83e576250553475496706fdc9876d2986a",
     "LICENSE": "90752cd67d2fbec0a65a0d172531178138bbb6a8a790e367572e8ec43c2bffcd",
-    "README.md": "b8a6b1dcc1fed68212daf9247722ba16ee51421afad4c898ffd1be887e73d508",
-    "docs/MATHEMATICS.md": "5d8dcec3f1a961d17916cf9ee6e32406ade96bd823e819513fb4a17a77734201",
+    "README.md": "5a472947673c013c3a5bdf6fa45382c1dce06248329c8db6c809b4f9896f513d",
+    "docs/MATHEMATICS.md": "fc377aaf2f17f5d4cf0313ab2288f68e2a48bd8cc5da965c8875f60d24cba634",
     "docs/PROGRESS_2026-10-13.md": "99bf8cba3074f6530cd25417896bad361b9fe34dd93c6ce480984a6c92da1f33",
+    "docs/PROGRESS_2026-10-14.md": "aa94c2f2a419a6e8422a6791333ffb63c96ce626fa16e7191ae8260851391616",
     "examples/previews/v0.1.0/synthetic_dispatch_day.png": "27ed0698b154649f9ba8d7c1ec5793e4973585d3ad04193deb289557d2e3cbc0",
     "gridmind_app/__init__.py": "c7f2de1afe499491cf698b652fa570706b60f21a77565635356b011db040e906",
     "gridmind_app/assets/create_icon.py": "59d57e8fd7013ec6577f6d130586b80b63a17732fe3245dc84a97df724eda74e",
     "gridmind_app/assets/gridmind.ico": "4f53ce4453fbfa1102fc53a577020b1d7c7f4c97eb45fbe762c9d0453fdcaafb",
     "gridmind_app/assets/gridmind.png": "f0c9028fef70877a51a9a28f70b8b0f82d751dcf40d650efaa12b4a73303c8c1",
-    "gridmind_app/build.ps1": "d9bf47d38e63de4863fccc3ce44db5fd74f2c2edd8fa44fe4b8bd25c5c0e34d1",
+    "gridmind_app/build.ps1": "d657d7cd1887656f3a25d6908cb7824d874161c9d7252aa5016ba6815fcc1f3c",
     "gridmind_app/main.py": "b6eb5826885635c224af899b5e80ecf49fc1d6aa2de251463b4b24aaa0605092",
     "input/config.json": "9cabeb56db4c2e0711ed40952d4e33b9e55e86d5109ca222649bc3e6ee37afa9",
     "input/hourly_profiles.csv": "26d9808a007499b47a4185c82599b09be9cf7dc0e0032bcd9795592bac17ab9f",
@@ -34,7 +35,7 @@
     "power_ga/operation_simulation/__init__.py": "caac8789f13df6bc5374b53c60a655dc15b83630c950cb74a5c4c88626248545",
     "power_ga/operation_simulation/engine.py": "8db88f1bb1cee4365c256bd90e71ca3ffa28a59854e9abd1c0c6374a04c2510d",
     "power_ga/operation_simulation/gurobi_engine.py": "487019c6c7e3e33ef3b676b1aaebd0998d59397a170436745406d374be911349",
-    "power_ga/operation_simulation/project_engine.py": "15f359507a276043064e4911a5bcfcf856fd2f77183d3a1b32998fea3fad4416",
+    "power_ga/operation_simulation/project_engine.py": "5bc09d70b52b38db1891cc5460028daa67875310723a405343aa3b7a52d573d7",
     "power_ga/result_output/__init__.py": "1e65f741d618930e691b2504ce6a5cb63c3634ce9f8d09e2dd0774b1c0bfc4e4",
     "power_ga/result_output/origin_plot.py": "119d34cff55ea708268267714b9033ef53723522843232969b7d964848dcba3a",
     "power_ga/result_output/project_report.py": "9a2dc15110fcd385e9da0e82997f7f5e54e266fd79b908a7c19387948a9121bf",
@@ -47,6 +48,6 @@
     "run_operation.py": "27f54bb54fc9964161604e92e0e9cade04a5038e39cbe8c39194c2ae3860eabf",
     "tests/test_engine.py": "0e631e2167eaaaa4ed9f40f67bb11f07b7153db0d945b6341327b2961960ec37",
     "tests/test_gurobi.py": "74c1f2a69349346194b4a245c4cde55a6f2becc199b427e32155c38862fe2ed8",
-    "tests/test_project_engine.py": "61ff640bc3cbae4dcf6ebf6c5691e2922c29885295d0c095464be6e16ce02679"
+    "tests/test_project_engine.py": "9f38f92e29e0f4e4acaddba32c896537840a59ccf267d114005472a5962a0812"
   }
 }
