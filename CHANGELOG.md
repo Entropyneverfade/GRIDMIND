@@ -1,5 +1,11 @@
 # Development progress / 开发进度
 
+## 2026-10-14 — Stage 0.1.3 / 单文件应用验收
+
+- Bundled the Origin renderer in the Windows build and made dense annual PDF fallback run inside the EXE. / 将Origin脚本纳入打包，年度PDF备用封装不再依赖外部Python。
+- Added a headless batch route to the same EXE for reproducible end-to-end checks. / 同一EXE可后台批量执行兼容项目流程。
+- Verified EXE startup, embedded icon, PDF fallback, complete 8,760-hour simulation, workbook, native Origin projects and exports on a local compatible dataset. No project inputs or outputs are published. / 已在本机核验EXE完整流程、图标、PDF备用路径、8760小时表与Origin工程，项目数据和结果仍不公开。
+
 ## 2026-10-13 — Stage 0.1.2 / 阶段修正
 
 - Fixed daily commitment credit for hydro energy-limited hours and excluded charging storage or already-used discharge MW from online reserve. / 修正缺水水电和储能备用重复计数。

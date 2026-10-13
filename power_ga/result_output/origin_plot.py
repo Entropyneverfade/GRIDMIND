@@ -56,6 +56,7 @@ def _render(folder: Path, columns, plots, spec, source_rows, source_header):
         writer.writerows(source_rows)
     spec.update({"folder": str(folder.resolve()), "data": str(data_path.resolve()),
                  "python_executable": sys.executable,
+                 "frozen_executable": bool(getattr(sys, "frozen", False)),
                  "columns": list(columns), "plots": plots})
     spec_path = folder / "scripts" / "figure_spec.json"
     spec_path.write_text(json.dumps(spec, ensure_ascii=False, indent=2), encoding="utf-8")

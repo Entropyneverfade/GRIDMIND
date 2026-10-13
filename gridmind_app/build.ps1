@@ -7,7 +7,8 @@ $entry = Join-Path $app 'main.py'
 $icon = Join-Path $app 'assets\gridmind.ico'
 $costs = Join-Path $project 'input\project_costs.csv'
 $assetDir = Join-Path $app 'assets'
-foreach($path in @($entry, $icon, $costs)) {
+$renderer = Join-Path $project 'power_ga\result_output\render_origin.ps1'
+foreach($path in @($entry, $icon, $costs, $renderer)) {
     if(-not (Test-Path -LiteralPath $path)) { throw "缺少打包输入：$path" }
 }
 # --onefile交付单个EXE；内置默认成本表只用于首次复制，用户更改保存在EXE旁。
@@ -16,6 +17,7 @@ foreach($path in @($entry, $icon, $costs)) {
     --paths $project `
     --add-data "${costs};input" `
     --add-data "${assetDir};gridmind_app/assets" `
+    --add-data "${renderer};power_ga/result_output" `
     --hidden-import power_ga.result_output.viewer `
     --hidden-import matplotlib.backends.backend_tkagg `
     --distpath (Join-Path $app 'dist') `

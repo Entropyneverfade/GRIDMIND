@@ -287,8 +287,37 @@ def main():
     parser.add_argument("--viewer", type=Path)
     parser.add_argument("--ga", type=Path)
     parser.add_argument("--smoke-test", action="store_true")
+    parser.add_argument("--pdf-fallback", nargs=2, metavar=("PNG", "PDF"), help=argparse.SUPPRESS)
+    parser.add_argument("--batch-source", type=Path, help="后台批处理使用的兼容项目数据库目录")
+    parser.add_argument("--batch-costs", type=Path, help="后台批处理使用的可编辑成本CSV")
+    parser.add_argument("--batch-output", type=Path, help="后台批处理结果目录")
+    parser.add_argument("--batch-year", type=int, default=2029)
+    parser.add_argument("--batch-simulate-only", action="store_true")
+    parser.add_argument("--batch-skip-figures", action="store_true")
     args = parser.parse_args()
-    if args.viewer:
+    if args.pdf_fallback:
+        # Origin对高密度年度矢量PDF导出失败时，用其原生600dpi PNG封装PDF。
+        # 子命令由打包后的EXE自身执行，不要求用户另装Python解释器。
+        from PIL import Image
+        png, pdf = map(Path, args.pdf_fallback)
+        with Image.open(png) as picture:
+            picture.convert("RGB").save(pdf, "PDF", resolution=600)
+    elif args.batch_source:
+        # 同一EXE的后台入口用于无人值守复核；计算仍走前后端共享的execute。
+        # 失败写入本次结果目录并返回非零状态，不弹出PyInstaller错误窗口。
+        from project_main import execute
+        output = (args.batch_output or user_folder().parent / "GRIDMIND_results" /
+                  f"scenario_{args.batch_year}_{datetime.now():%Y%m%d_%H%M%S}")
+        try:
+            execute(args.batch_source, args.batch_year,
+                    args.batch_costs or prepare_cost_file(), output,
+                    plan=not args.batch_simulate_only,
+                    figures=not args.batch_skip_figures)
+        except Exception as error:
+            output.mkdir(parents=True, exist_ok=True)
+            (output / "batch_error.txt").write_text(str(error), encoding="utf-8")
+            raise SystemExit(1)
+    elif args.viewer:
         from power_ga.result_output.viewer import launch, load_hours
         import matplotlib
         matplotlib.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimSun", "DejaVu Sans"]

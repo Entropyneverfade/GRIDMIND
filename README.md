@@ -37,7 +37,7 @@ python gridmind_app/main.py               # Desktop application / 桌面窗口
 python -m unittest discover -s tests -q
 ```
 
-On Windows, `gridmind_app/build.ps1` uses PyInstaller to create `GRIDMIND.exe` with the original icon. Static native Origin figures require a separately installed Origin; omit them with `--skip-figures` when unavailable. A compatible external project database is selected in the desktop application and is never bundled with this repository. Windows 下可用打包脚本生成带原创图标的 EXE；原生 Origin 静态图需要本机另行安装 Origin。外部项目数据库由用户在窗口中选择，仓库不附带数据库。
+On Windows, `gridmind_app/build.ps1` uses PyInstaller to create `GRIDMIND.exe` with the original icon and bundled renderer. Static native Origin figures require a separately installed Origin; turn off the figure option in the desktop app when unavailable. The EXE also accepts `--batch-source <compatible-folder> --batch-year 2029 --batch-output <result-folder> --batch-simulate-only` for background verification. A compatible external project database is selected by the user and is never bundled with this repository. Windows 下可用打包脚本生成带原创图标与渲染脚本的 EXE；原生 Origin 静态图需要本机另行安装 Origin。外部项目数据库由用户选择，仓库不附带数据库。
 
 ![Synthetic daily dispatch / 合成日运行展示](examples/previews/v0.1.0/synthetic_dispatch_day.png)
 
