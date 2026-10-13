@@ -1,12 +1,18 @@
 """公开合成8760小时场景：核对新项目引擎的储能连续性和能量平衡。"""
 
 import unittest
+from datetime import date, timedelta
 from itertools import product
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
-from power_ga.common.domain import GASettings
-from power_ga.data_collection.project_case import CasePlant, ProjectCase
+from openpyxl import Workbook, load_workbook
+
+from power_ga.common.domain import GASettings, PLANNING_MONTH_HOURS
+from power_ga.data_collection.project_case import CasePlant, ProjectCase, _read_curve
 from power_ga.genetic_iteration.project_solver import evaluate_project, optimize_project
-from power_ga.operation_simulation.project_engine import _hydro_target, simulate_project
+from power_ga.operation_simulation.project_engine import _hydro_target, _monthly_index, simulate_project
+from power_ga.result_output.project_report import write_project_report
 
 
 class ProjectEngineTests(unittest.TestCase):
@@ -83,11 +89,64 @@ class ProjectEngineTests(unittest.TestCase):
         net = [0.0] * 8760
         net[31 * 24] = 10.0  # 2月首小时留有正净负荷，检验非零月份仍调度。
         budget = [5.0] * 12
-        target = _hydro_target(net, 20.0, budget, 2029)
+        target = _hydro_target(net, 20.0, budget)
         self.assertEqual(len(target), 8760)
         self.assertAlmostEqual(sum(target[:31 * 24]), 0.0)
         self.assertAlmostEqual(target[31 * 24], 5.0, places=7)
         self.assertAlmostEqual(sum(target), 5.0, places=7)
+
+    def test_leap_year_uses_8760_hour_planning_calendar(self):
+        """2028年省略2月29日；水电运行、逐月工作簿和窗口共用365日边界。"""
+        self.assertEqual(sum(PLANNING_MONTH_HOURS), 8760)
+        self.assertEqual(_monthly_index()[744:1416], [1] * 672)
+        plants = (CasePlant(1, "Hydro", "hydro", 2, 0, 30, 0),
+                  CasePlant(2, "Coal", "coal", 10, 0, 300, 0))
+        with TemporaryDirectory() as folder:
+            root = Path(folder)
+            # 报告只对源文件留SHA256；合成标记文件不会充作项目工作簿输入。
+            for year in (2025, 2028):
+                source = root / str(year)
+                source.mkdir()
+                (source / f"{year}.xlsx").write_bytes(b"synthetic-test-source")
+            cost = root / "cost.csv"
+            cost.write_text("synthetic-test-cost", encoding="utf-8")
+            case = ProjectCase(2025, 2028, plants, (), (5.0,) * 8760,
+                               (0.0,) * 8760, 0.0, 0, (), str(root), str(cost))
+            run = simulate_project(case, (), keep_hourly=True)
+            self.assertEqual(len(run.hourly), 8760)
+            self.assertLess(run.summary["max_balance_residual_mw"], 1e-7)
+            write_project_report(case, None, run, root / "result", make_figures=False)
+            book = load_workbook(root / "result/tables/全年规划运行结果汇总.xlsx", read_only=True)
+            rows = list(book["逐月统计"].values)
+            book.close()
+            # 2月起止为744..1415，3月从1416开始；Σ月负荷应等于全年负荷。
+            self.assertEqual((rows[2][1], rows[2][2], rows[3][1]), (744, 1415, 1416))
+            self.assertAlmostEqual(sum(row[6] for row in rows[1:]), 5.0 * 8760)
+
+    def test_leap_curve_rejects_misaligned_day_labels(self):
+        """8760个值仍可能把闰日错放进2月；导入前需核对日期顺序。"""
+        with TemporaryDirectory() as folder:
+            year_folder = Path(folder) / "2028"
+            curve_folder = year_folder / "CURVE"
+            curve_folder.mkdir(parents=True)
+            book = Workbook()
+            sheet = book.active
+            sheet.append(["日期"] + list(range(1, 25)))
+            day = date(2028, 1, 1)
+            while day.year == 2028:
+                if day != date(2028, 2, 29):
+                    sheet.append([day.strftime("%Y/%m/%d")] + [0.5] * 24)
+                day += timedelta(days=1)
+            wrong_row = (date(2028, 3, 1) - date(2028, 1, 1)).days + 1
+            sheet.cell(wrong_row, 1).value = "2028/02/29"
+            path = curve_folder / "synthetic.xlsx"
+            book.save(path)
+            with self.assertRaisesRegex(ValueError, "闰年曲线"):
+                _read_curve(year_folder, "synthetic", {})
+            sheet.cell(wrong_row, 1).value = "2028/03/01"
+            book.save(path)
+            book.close()
+            self.assertEqual(len(_read_curve(year_folder, "synthetic", {})), 8760)
 
     def test_online_reserve_is_planning_feasibility_gate(self):
         """无缺供但仅余2MW备用、需3MW备用时，不能报告为可行规划。"""

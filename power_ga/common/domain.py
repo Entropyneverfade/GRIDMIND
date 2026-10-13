@@ -68,3 +68,8 @@ class GASettings:
 
 POWER_TOLERANCE_MW = 1e-6
 ANNUAL_ENERGY_TOLERANCE_MWH = 1e-4  # 8760个小时数值误差积分，0.1kWh量级
+
+# 规划年固定365日：闰年输入曲线省略2月29日，故Σ月小时数=8760。
+# 月预算、逐月表和窗口须共用此口径，避免2028年误按8784小时分段。
+PLANNING_MONTH_DAYS = (31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+PLANNING_MONTH_HOURS = tuple(days * 24 for days in PLANNING_MONTH_DAYS)

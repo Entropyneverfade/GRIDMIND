@@ -2,7 +2,9 @@
 
 import csv
 import math
+from calendar import isleap
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Tuple
 
@@ -60,16 +62,37 @@ def _records(book, sheet):
 
 
 def _read_curve(year_folder: Path, name: str, cache: dict):
-    """365日×24h展平，禁用插值；缺少曲线时直接报错。"""
+    """365日×24h展平，禁用插值；闰年校核2月29日是否已省略。"""
     if name in cache:
         return cache[name]
     path = year_folder / "CURVE" / (name + ".xlsx")
     if not path.exists():
         raise FileNotFoundError(f"缺少逐时曲线：{path}")
     book = load_workbook(path, read_only=True, data_only=True)
-    points = tuple(float(v) for row in list(book.worksheets[0].values)[1:]
-                   for v in row[1:25])
-    book.close()
+    try:
+        rows = list(book.worksheets[0].values)[1:]
+    finally:
+        book.close()  # 即使数据无效，也及时释放只读工作簿句柄。
+    if year_folder.name.isdecimal() and isleap(int(year_folder.name)):
+        year = int(year_folder.name)
+        expected = date(year, 1, 1)
+        for day, row in enumerate(rows, 1):
+            if expected.month == 2 and expected.day == 29:
+                expected += timedelta(days=1)  # 8760小时规划年没有闰日。
+            label = row[0]
+            try:
+                if isinstance(label, datetime):
+                    actual = label.date()
+                elif isinstance(label, date):
+                    actual = label
+                else:
+                    actual = date.fromisoformat(str(label).replace("/", "-"))
+            except ValueError as error:
+                raise ValueError(f"闰年曲线第{day}日日期标签无效：{path}") from error
+            if actual != expected:
+                raise ValueError(f"闰年曲线第{day}日应为{expected}，实际为{actual}：{path}")
+            expected += timedelta(days=1)
+    points = tuple(float(v) for row in rows for v in row[1:25])
     if len(points) != 8760 or any(not math.isfinite(v) or v < 0 for v in points):
         raise ValueError(f"曲线应为8760个非负有限值：{path}")
     cache[name] = points

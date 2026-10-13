@@ -1,10 +1,10 @@
 """真实项目全年运行：八类电源、跨日储能、水电月水量和联络线外送。"""
 
 import math
-from calendar import monthrange
 from dataclasses import dataclass, replace
 from typing import Tuple
 
+from ..common.domain import PLANNING_MONTH_HOURS
 from ..data_collection.project_case import CasePlant, ProjectCase
 
 
@@ -74,14 +74,13 @@ class _Storage:
         return power
 
 
-def _monthly_index(year):
-    """给每小时附所属月；水电月水量不能跨月借用。"""
+def _monthly_index():
+    """按365日规划年给8760小时附所属月；闰年也不含2月29日。"""
     months = []
-    for month in range(1, 13):
-        size = monthrange(year, month)[1] * 24
-        months.extend([month - 1] * size)
+    for month, size in enumerate(PLANNING_MONTH_HOURS):
+        months.extend([month] * size)
     if len(months) != 8760:
-        raise ValueError("当前引擎只接受非闰年8760小时")
+        raise ValueError("规划年月分段必须覆盖8760小时")
     return months
 
 
@@ -96,7 +95,7 @@ def _renewable_availability(plants, kind):
     return series
 
 
-def _hydro_target(net_load, capacity_mw, monthly_budget, year):
+def _hydro_target(net_load, capacity_mw, monthly_budget):
     """水电月电量按净负荷高低分配：p_t=min(Pmax,λ·净负荷_t)。
 
     二分求λ使Σ_t p_t不超过月水量预算，是“削减月内净负荷起伏”的
@@ -105,10 +104,9 @@ def _hydro_target(net_load, capacity_mw, monthly_budget, year):
     """
     profile = []
     first = 0
-    for month in range(1, 13):
-        size = monthrange(year, month)[1] * 24
+    for month, size in enumerate(PLANNING_MONTH_HOURS):
         weights = [max(0.0, v) for v in net_load[first:first + size]]
-        budget = min(monthly_budget[month - 1], capacity_mw * size)
+        budget = min(monthly_budget[month], capacity_mw * size)
         if budget <= 0:
             profile.extend([0.0] * size)
         elif max(weights) <= 0:
@@ -149,19 +147,19 @@ def simulate_project(case: ProjectCase, chromosome, keep_hourly=False,
     dispatchable = tuple(sorted((p for p in plants if p.technology in {"coal", "gas", "hydro", "biomass"}),
                                 key=lambda p: (p.variable_cost_yuan_per_mwh, p.station_id)))
     stores = [_Storage(p) for p in plants if p.technology in {"pumped", "battery"}]
-    month_of = _monthly_index(case.target_year)
+    month_of = _monthly_index()
     # 月可用水电量=月小时数×额定MW×设定年利用率×该月水文相对系数。
     # 0.42为可编辑运行参数，不是项目库提供的实测来水电量。
     hydro_budget = {}
     for p in dispatchable:
         if p.technology == "hydro":
-            hydro_budget[p.station_id] = [p.capacity_mw * monthrange(case.target_year, m + 1)[1] * 24
-                                          * hydro_annual_utilization * p.hydro_monthly_factor[m]
-                                          for m in range(12)]
+            hydro_budget[p.station_id] = [p.capacity_mw * hours * hydro_annual_utilization
+                                          * p.hydro_monthly_factor[m]
+                                          for m, hours in enumerate(PLANNING_MONTH_HOURS)]
     load = [a + b for a, b in zip(case.domestic_load_mw, case.export_mw)]
     net = [max(0.0, l - w - s) for l, w, s in zip(load, wind_avail, solar_avail)]
     hydro_schedule = {p.station_id: _hydro_target(net, p.capacity_mw,
-                                                   hydro_budget[p.station_id], case.target_year)
+                                                   hydro_budget[p.station_id])
                       for p in dispatchable if p.technology == "hydro"}
     prefix = [0.0]
     for value in net:

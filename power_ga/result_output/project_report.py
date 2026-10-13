@@ -3,12 +3,12 @@
 import hashlib
 import json
 import shutil
-from calendar import monthrange
 from dataclasses import asdict
 from pathlib import Path
 
 from openpyxl import Workbook
 
+from ..common.domain import PLANNING_MONTH_HOURS
 from ..data_collection.project_case import TECH_LABELS
 from .origin_plot import plot_project_results
 from .tables import _add_sheet, _write_csv
@@ -116,8 +116,8 @@ def write_project_report(case, result, simulation, output_dir: Path, make_figure
                                   "期末MWh", "期末SOC", "状态残差MWh"], simulation.storage_hourly, 6)
     day_header, day_rows = _periods(hourly, [24] * 365)
     _add_sheet(book, "逐日统计", day_header, day_rows, 4)
-    month_header, month_rows = _periods(hourly,
-                                        [monthrange(case.target_year, m)[1] * 24 for m in range(1, 13)])
+    # 闰年输入也固定省略2月29日；报表与水电月预算采用同一8760小时边界。
+    month_header, month_rows = _periods(hourly, PLANNING_MONTH_HOURS)
     _add_sheet(book, "逐月统计", month_header, month_rows, 4)
     if history_rows:
         _add_sheet(book, "遗传迭代", ["代数", "历代最优元", "本代最优元", "可行均值元",
@@ -135,7 +135,7 @@ def write_project_report(case, result, simulation, output_dir: Path, make_figure
         ["储能", "库容=额定MW×储能时长h；往返效率按平方根分解，年初SOC=0"],
         ["成本", "官方美国技术基准经7.0试算汇率及7%贴现率换算；燃料费为可编辑情景假设"],
         ["可靠性", "风光/储能规划可信容量保守取0；不等于ELCC或概率可靠性认证"],
-        ["时间", "8760个连续1小时；所有逐时功率和能量库存保留原始数值"],
+        ["时间", "365日规划年共8760小时；闰年省略2月29日；逐时功率和库存保留原始值"],
     ])
     book.save(tables / "全年规划运行结果汇总.xlsx")
     # 运行清单存哈希及文件路径；费用参数拷贝到当次tables供以后复算。

@@ -7,9 +7,9 @@
 import argparse
 import csv
 import math
-from calendar import monthrange
 from pathlib import Path
 
+from ..common.domain import PLANNING_MONTH_HOURS
 
 # 配色与Origin静态图一致；这里是交互窗口，静态交付仍由Origin原生绘制。
 COLORS = {"thermal": "#FF0000", "solar": "#FFFF00", "wind": "#00DD00",
@@ -21,7 +21,7 @@ FIELDS = ("load_mw", "thermal_mw", "wind_mw", "solar_mw", "storage_charge_mw",
 OPTIONAL_FIELDS = ("domestic_load_mw", "export_mw", "coal_mw", "gas_mw", "hydro_mw",
                    "biomass_mw", "pumped_charge_mw", "pumped_discharge_mw",
                    "battery_charge_mw", "battery_discharge_mw")
-MONTH_HOURS = [monthrange(2025, month)[1] * 24 for month in range(1, 13)]
+MONTH_HOURS = PLANNING_MONTH_HOURS  # 与运行引擎及逐月工作簿相同的365日规划年。
 
 
 def load_hours(result_dir: Path):

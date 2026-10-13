@@ -2,6 +2,10 @@
 
 这里给出当前程序实际执行的关系，符号均按单区域、1 小时步长定义。These equations describe the implemented deterministic single-region model at a one-hour time step.
 
+## 0. 8760小时规划年 / Planning-year time base
+
+全年固定为365日×24小时，月小时数为 \((744,672,744,720,744,720,744,744,720,744,720,744)\)，总和8760。闰年兼容曲线省略2月29日，导入时核对日期标签；水电月预算、逐月汇总和交互窗口共用这一边界。The model uses a 365-day planning year even when the input year is a leap year: February 29 is omitted and daily labels are checked. This is an input convention, not a simulation of the omitted calendar day.
+
 ## 1. 候选项目与目标 / Candidate projects and objective
 
 对候选项目 \(j\)，\(x_j\in\{0,1\}\) 表示是否建设，\(a_j\) 是年化固定费用，\(g_{k,t}\) 是技术 \(k\) 在小时 \(t\) 的实际发电量，\(c_k\) 是变动费用：

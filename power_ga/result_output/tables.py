@@ -4,13 +4,12 @@ import csv
 import json
 from dataclasses import asdict
 from pathlib import Path
-from calendar import monthrange
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from ..common.domain import Problem
+from ..common.domain import PLANNING_MONTH_HOURS, Problem
 from ..initial_population.encoding import decode
 from ..genetic_iteration.solver import GAResult
 from ..operation_simulation import simulate
@@ -109,9 +108,9 @@ def _write_workbook(output_dir: Path, problem: Problem, result: GAResult, simula
                    (list(asdict(h).values()) for h in simulation.storage_hourly), 6)
     daily_header, daily = _period_rows(simulation.hourly, [24] * 365, "日序号")
     _add_sheet(book, "逐日统计", daily_header, daily)
-    # 非闰年12个月小时数；年度8760点与输入曲线的小时顺序严格对齐。
+    # 教学算例也使用与项目流程相同的365日规划年月份边界。
     monthly_header, monthly = _period_rows(simulation.hourly,
-                                           [monthrange(2025, month)[1] * 24 for month in range(1, 13)], "月序号")
+                                           PLANNING_MONTH_HOURS, "月序号")
     _add_sheet(book, "逐月统计", monthly_header, monthly)
     if result.history:
         with (output_dir / "history.csv").open(encoding="utf-8-sig", newline="") as stream:

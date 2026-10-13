@@ -1,5 +1,11 @@
 # Development progress / 开发进度
 
+## 2026-10-14 — Stage 0.1.5 / 闰年8760小时口径
+
+- Unified hydro budgets, monthly tables and the viewer on one 365-day planning calendar. Leap-year curves must omit February 29 and pass daily-label checks. / 水电预算、逐月表和窗口统一使用365日规划年；闰年曲线需省略2月29日并通过日期校核。
+- Added synthetic leap-year operation, workbook and misaligned-label counterexamples; 19 synthetic tests pass. / 加入闰年运行、工作簿及错位日期合成反例，19项测试通过。
+- An independent local physical-residual audit passed; no external dataset metadata, values or outputs are published. / 独立的本机物理残差复核已通过；外部数据集元数据、数值和结果均不公开。
+
 ## 2026-10-14 — Stage 0.1.4 / 水电月预算边界修正
 
 - Monthly hydro water is an energy upper bound. A month with no positive net load schedules zero hydro instead of forcing water through the turbine. / 月水量作为电量上限；整月没有正净负荷时不强制水电发电。
