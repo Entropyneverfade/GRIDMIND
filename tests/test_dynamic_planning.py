@@ -6,13 +6,36 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
+from openpyxl import load_workbook
+
 from power_ga.data_collection.project_case import CasePlant, ProjectCase, align_stage_case
 from power_ga.dynamic_planning.solver import _dp_tables, _gurobi_path, _validate_cases
+from power_ga.genetic_iteration.project_solver import evaluate_project
 from power_ga.operation_simulation.project_engine import simulate_project
 from power_ga.result_output.dynamic_report import write_dynamic_report
 
 
 class DynamicPlanningTests(unittest.TestCase):
+    def test_year_only_project_is_exogenous_and_charged(self):
+        """只在中间年度出现的增量应供电并付年费，不能悄悄丢弃或挤占终期位。"""
+        old = CasePlant(1, "合成煤电", "coal", 50, .4, 300, 0)
+        extra = CasePlant(1, "合成煤电", "coal", 25, .2, 300, 1000)
+        optional = CasePlant(2, "合成燃气", "gas", 15, 0, 400, 2000)
+        final = ProjectCase(2025, 2027, (old,), (optional,), (75,) * 8760,
+                            (0,) * 8760, 0, 657, (), "synthetic", "synthetic")
+        annual = ProjectCase(2025, 2026, (old,), (extra,), (75,) * 8760,
+                             (0,) * 8760, 0, 657, (), "synthetic", "synthetic")
+        stage = align_stage_case(final, annual)
+        run = simulate_project(stage, (0,), reserve_ratio=0)
+        score = evaluate_project(stage, (0,))
+        self.assertEqual(75, stage.existing[0].capacity_mw)
+        self.assertAlmostEqual(1 / 3, stage.existing[0].min_fraction)
+        self.assertEqual(1000, stage.existing[0].annual_cost_yuan)
+        self.assertEqual(1000, score.annual_fixed_cost_yuan)
+        self.assertEqual(0, run.summary["unserved"])
+        self.assertLess(run.summary["max_balance_residual_mw"], 1e-6)
+        self.assertIn("外生投运", " ".join(stage.warnings))
+
     def test_annual_existing_capacity_changes_hourly_feasibility(self):
         """前一年仅有50MW存量时不能偷用终期100MW；逐时缺口仍要守恒。"""
         def make(year, capacity):
@@ -44,11 +67,21 @@ class DynamicPlanningTests(unittest.TestCase):
                                       unique_count=3),))
         case = SimpleNamespace(candidates=(SimpleNamespace(name="合成燃气"),))
         with tempfile.TemporaryDirectory() as folder:
-            write_dynamic_report(result, case, Path(folder), .95, "source", (ga, (0, 1)))
+            exogenous = (SimpleNamespace(station_id=9, name="合成煤电", technology="coal",
+                                         capacity_mw=25, annual_cost_yuan=1000),)
+            write_dynamic_report(result, case, Path(folder), .95, "source",
+                                 (ga, (0, 1)), exogenous)
             audit = json.loads((Path(folder) / "dynamic_audit.json").read_text(encoding="utf-8"))
             self.assertEqual(.05, round(audit["ga_comparison"]["relative_gap"], 8))
             self.assertEqual("source", audit["stage_input_mode"])
+            self.assertEqual(1000, audit["exogenous_annual_cost_yuan"])
             self.assertTrue((Path(folder) / "tables" / "ga_dp_comparison.csv").is_file())
+            book = load_workbook(Path(folder) / "tables" / "动态规划阶段汇总.xlsx",
+                                 read_only=True, data_only=True)
+            try:
+                self.assertEqual(1000, book["年度外生计划"].cell(2, 6).value)
+            finally:
+                book.close()
         with tempfile.TemporaryDirectory() as folder:
             # 零费用最优与不可行候选都不能触发除零或产生虚假百分比。
             zero_result = SimpleNamespace(stages=result.stages, objective_yuan=0.0,

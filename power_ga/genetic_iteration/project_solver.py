@@ -11,7 +11,9 @@ def evaluate_project(case, chromosome):
     simulation = simulate_project(case, chromosome, keep_hourly=False)
     metrics = simulation.summary
     built = [p for bit, p in zip(chromosome, case.candidates) if bit]
-    fixed = sum(p.annual_cost_yuan for p in built)
+    # 基年存量费用为0；仅中间年度出现的外生计划项目保留其年度固定费。
+    fixed = (sum(p.annual_cost_yuan for p in case.existing) +
+             sum(p.annual_cost_yuan for p in built))
     # 风光容量信用需经ELCC或多场景可靠性另算；这里保守取0。
     firm_types = {"coal", "gas", "hydro", "biomass"}
     firm = sum(p.capacity_mw for p in case.existing if p.technology in firm_types)

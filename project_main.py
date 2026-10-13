@@ -27,8 +27,14 @@ def _stage_input_hash(case):
     for values in (case.domestic_load_mw, case.export_mw):
         for value in values:
             digest.update(struct.pack("<d", float(value)))
+    digest.update(struct.pack("<d", float(case.reserve_margin)))
     for plant in case.existing + case.candidates:
-        digest.update(f"{plant.station_id}:{plant.technology}:{plant.capacity_mw}".encode("utf-8"))
+        digest.update(f"{plant.station_id}:{plant.technology}".encode("utf-8"))
+        for value in (plant.capacity_mw, plant.min_fraction,
+                      plant.variable_cost_yuan_per_mwh, plant.annual_cost_yuan,
+                      plant.storage_hours, plant.charge_ratio,
+                      plant.roundtrip_efficiency):
+            digest.update(struct.pack("<d", float(value)))
         for value in plant.profile + plant.hydro_monthly_factor:
             digest.update(struct.pack("<d", float(value)))
     return digest.hexdigest()
@@ -50,15 +56,19 @@ def execute(source: Path, year: int, costs: Path, output: Path, *,
         progress(f"已读取{len(case.existing)}座存量电站、{len(case.candidates)}个候选容量段")
     result = None
     ga_comparison = None
+    exogenous_projects = ()
     if plan and algorithm == "dp" and case.candidates:
         if year <= case.base_year + 1:
             raise ValueError("双年度动态规划的目标年须至少比基年晚2年，避免在基年预建候选项目")
         if stage_input_mode == "scaled" and not 0 < previous_load_factor <= 1:
             raise ValueError("前一年负荷系数须在(0,1]内")
         if stage_input_mode == "source":
-            # 逐年库提供该年的本地负荷、外送、风光及水文；候选位固定为终期设计，
-            # 已列入源库的待建容量仍由规划器决定，不能提前算作固定存量。
+            # 逐年库提供本地负荷、外送、风光、水文及有效容量；终期候选位由规划器决定。
+            # 仅当年出现而终期没有的计划增量作为外生年度投运并付等年值费用。
             annual_source = load_project_case(source, year - 1, costs)
+            terminal_ids = {plant.station_id for plant in case.candidates}
+            exogenous_projects = tuple(plant for plant in annual_source.candidates
+                                       if plant.station_id not in terminal_ids)
             preceding = align_stage_case(case, annual_source)
         else:
             # 缺少独立年度预测时，用户可显式用目标年曲线构造负荷情景。
@@ -105,7 +115,8 @@ def execute(source: Path, year: int, costs: Path, output: Path, *,
         write_project_report(case, report_result, simulation, output, make_figures=figures)
         write_dynamic_report(result, case, output, previous_load_factor,
                              stage_input_mode=stage_input_mode,
-                             ga_comparison=ga_comparison)
+                             ga_comparison=ga_comparison,
+                             exogenous_projects=exogenous_projects)
         manifest_path = Path(output) / "run_manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         manifest["planning_algorithm"] = "dynamic_programming"

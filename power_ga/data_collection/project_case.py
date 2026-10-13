@@ -265,11 +265,43 @@ def align_stage_case(final_case: ProjectCase, year_case: ProjectCase) -> Project
     if year_case.target_year >= final_case.target_year or year_case.base_year != final_case.base_year:
         raise ValueError("阶段源数据年份必须在共同基年之后、终期目标年之前")
     # 阶段存量采用当年库的基年已有有效容量，包含年度退役/扩容变化。
-    # 当年库中超过基年存量的容量仍属可选建设，不能提前并入固定存量；
-    # 候选位、项目容量和投资参数继续以终期设计统一编码。
+    # 当年库中与终期候选同ID的新增容量仍属可选建设，不能提前并入固定存量；
+    # 终期候选位、项目容量和投资参数继续以终期设计统一编码。
     annual_plants = {plant.station_id: plant
                      for plant in year_case.existing + year_case.candidates}
     warnings = list(year_case.warnings)
+    terminal_ids = {plant.station_id for plant in final_case.candidates}
+    existing_by_id = {plant.station_id: plant for plant in year_case.existing}
+    source_only = [plant for plant in year_case.candidates
+                   if plant.station_id not in terminal_ids]
+    for plant in source_only:
+        # 仅中间年度出现的计划增量无法用终期0/1位选择；按该年源库计划
+        # 作为外生投运，并保留其等年值费用，下一年度不自动继承。
+        old = existing_by_id.get(plant.station_id)
+        if old is None:
+            existing_by_id[plant.station_id] = plant
+            continue
+        if old.technology != plant.technology:
+            raise ValueError(f"年度电站{plant.station_id}的存量与外生增量技术不一致")
+        if old.technology in {"pumped", "battery"} and (
+                old.storage_hours != plant.storage_hours or
+                old.roundtrip_efficiency != plant.roundtrip_efficiency or
+                old.charge_ratio != plant.charge_ratio):
+            raise ValueError(f"储能电站{plant.station_id}的存量与外生增量参数不一致，不能聚合")
+        if old.technology in {"wind", "solar"} and old.profile != plant.profile:
+            raise ValueError(f"可再生电站{plant.station_id}的存量与外生增量曲线不一致")
+        if old.technology == "hydro" and old.hydro_monthly_factor != plant.hydro_monthly_factor:
+            raise ValueError(f"水电站{plant.station_id}的存量与外生增量月来水因子不一致")
+        capacity = old.capacity_mw + plant.capacity_mw
+        # 聚合后最低出力MW守恒：P总×r总=P旧×r旧+P增×r增。
+        minimum = ((old.capacity_mw * old.min_fraction +
+                    plant.capacity_mw * plant.min_fraction) / capacity)
+        existing_by_id[plant.station_id] = replace(
+            old, capacity_mw=capacity, min_fraction=minimum,
+            annual_cost_yuan=old.annual_cost_yuan + plant.annual_cost_yuan)
+    if source_only:
+        warnings.append(f"{year_case.target_year}年度有{len(source_only)}个非终期候选增量；"
+                        "按当年源库计划外生投运并计入年化费用，不属于终期可选状态位")
 
     def use_year_profile(plant: CasePlant) -> CasePlant:
         """相同电站按年度替换天气/来水；缺少可再生曲线时拒绝猜测。"""
@@ -290,7 +322,7 @@ def align_stage_case(final_case: ProjectCase, year_case: ProjectCase) -> Project
         return plant
 
     return replace(final_case, target_year=year_case.target_year,
-                   existing=year_case.existing,
+                   existing=tuple(existing_by_id[key] for key in sorted(existing_by_id)),
                    candidates=tuple(map(use_year_profile, final_case.candidates)),
                    domestic_load_mw=year_case.domestic_load_mw,
                    export_mw=year_case.export_mw,

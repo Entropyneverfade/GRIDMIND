@@ -1,5 +1,11 @@
 # Development progress / 开发进度
 
+## 2026-10-14 — Stage 0.2.3 / 中间年度计划增量处理
+
+- 中间年度源库含有终期候选清单之外的计划增量时，按当年外生投运计入供给与年化费用，并在存档中警示；同站容量及最低出力按容量守恒聚合。Source-year-only planned increments are treated as exogenous for that year, charged annualized fixed cost, and explicitly warned; same-station capacity and minimum output are aggregated consistently.
+- 新增合成已知答案，检查25 MW外生增量和1000元年费；0.2.1/0.2.2的年度源库模式结果应重算。A synthetic known-answer case verifies physical capacity and fixed cost; prior source-mode outputs must be rerun.
+- 年度外生容量及年化费用单列在阶段工作簿和CSV；EXE与源码的输入指纹、规划路径及费用一致，私有试算结果仅留本机。The stage workbook and CSV disclose exogenous commitments, and packaged/source results agree under the same fingerprint; project details remain local.
+
 ## 2026-10-14 — Stage 0.2.2 / 年度存量容量修正
 
 - 修正年度源输入模式：前一年既有机组有效装机从前一年源库读取，终期只定义共同候选位与设计容量。Correct annual source-mode dispatch to use that year's existing capacity, while terminal data defines the common optional-project bits.

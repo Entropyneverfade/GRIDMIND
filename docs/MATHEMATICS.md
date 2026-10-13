@@ -91,4 +91,4 @@ For this baseline, \(F\) counts coal, gas, conventional hydro and biomass rated 
 F_t(s)=\frac{c_t(s)}{(1+r)^{t-1}}+\min_{p\subseteq s}F_{t-1}(p).
 \]
 
-Gurobi 用每年一个可行状态的0/1模型独立校验递推最优值。The state cost includes annualized candidate cost and actual hourly variable cost; physical feasibility is enforced before a state enters the recursion. See the [complete derivation](MATHEMATICS_APPENDIX.md#12-多年度动态规划--multi-year-dynamic-programming) and [synthetic comparison](CASE_STUDY.md).
+Gurobi 用每年一个可行状态的0/1模型独立校验递推最优值。年度源库模式以各年度存量装机及曲线计算供给；仅中间年度出现、终期候选位之外的计划项目作为该年外生容量，年化费用加入 \(c_t(s)\)。The state cost includes annualized candidate and exogenous costs plus actual hourly variable cost; physical feasibility is enforced before a state enters the recursion. See the [complete derivation](MATHEMATICS_APPENDIX.md#12-多年度动态规划--multi-year-dynamic-programming) and [synthetic comparison](CASE_STUDY.md).

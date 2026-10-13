@@ -69,7 +69,9 @@ def write_project_report(case, result, simulation, output_dir: Path, make_figure
                    ["hour", "station", "technology", "charge_mw", "discharge_mw",
                     "energy_start_mwh", "energy_end_mwh", "soc_end", "state_residual_mwh"],
                    simulation.storage_hourly)
-    project_rows = (["存量", p.station_id, p.name, TECH_LABELS[p.technology], p.capacity_mw, 1, 0.0]
+    project_rows = (["存量含外生计划" if p.annual_cost_yuan > 0 else "存量",
+                     p.station_id, p.name, TECH_LABELS[p.technology], p.capacity_mw,
+                     1, p.annual_cost_yuan]
                     for p in case.existing)
     project_rows = list(project_rows) + [
         ["候选", p.station_id, p.name, TECH_LABELS[p.technology], p.capacity_mw, bit, p.annual_cost_yuan]

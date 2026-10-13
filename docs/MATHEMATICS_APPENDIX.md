@@ -150,6 +150,14 @@ Current scope: one region, deterministic hourly profiles, fixed hourly exports, 
 
 ## 12. 多年度动态规划 / Multi-year dynamic programming
 
+原教学PPT第21–24张幻灯片给出待选电站状态编码、按年划分阶段、建设决策、状态转移及顺序费用递推；第25–26张还列出分区平衡、能源约束、可靠性、水电梯级、未供电量损失费和残值。GRIDMIND实现了前述**离散状态与递推骨架**，并用单区域8760小时规则运行计算阶段费用；后述扩展仍列在开发计划中，不能把本程序称为该PPT完整模型的复现。The course slides define a broader planning model; this implementation covers its binary stage-state recursion and a narrower deterministic operation layer.
+
+| PPT内容 / Slide concept | GRIDMIND实现 / Implemented scope | 边界 / Remaining boundary |
+|---|---|---|
+| 21–24页：待选状态、年度阶段、决策与顺序递推 / Candidate states and Bellman recursion | 每个终期候选增量一位，状态只由0转1；逐年阶段费贴现 / One bit per terminal increment; monotone discounted stages | 同站多容量级和建设工期尚未建模 / No multi-level size or lead time |
+| 25页：运行模拟、能源及分区电力平衡 / Operation and regional checks | 每个状态运行8760小时；单区功率平衡、储能状态、月水电预算 / Hourly single-region balance, storage and monthly hydro | 无分区线路潮流、完整能源分区和概率可靠性 / No network flow or probabilistic adequacy |
+| 26页：投资、固定及可变费、损失费和残值 / Cost terms | 年化建设费与逐时发电变动费；缺供、备用和过剩设硬约束 / Annualized and variable costs with hard feasibility constraints | 未给缺供、弃水定货币损失或终期残值 / No monetary shortage, water-spill or salvage valuation |
+
 与单年度 \(x_i\in\{0,1\}\) 不同，多年度状态 \(s_t\in\{0,1\}^{|J|}\) 表示第 \(t\) 个规划年末已投运候选集合。阶段建设决策 \(u_t=s_t-s_{t-1}\ge0\) 按位理解，已投运机组不会在此简化模型中退役。The first state starts from no optional projects, and each transition may add projects but not remove them.
 
 阶段 \(t\) 对每个状态运行自身的 8,760 小时负荷、电源及储能模拟，得到实际发电变动费 \(C_t^{op}(s)\)。已投运项目的年化建设费为 \(C_t^{ann}(s)=\sum_i s_i A_i\)，其中 \(A_i\) 是元/年的等年值。因此阶段费 \(c_t(s)=C_t^{ann}(s)+C_t^{op}(s)\)，并只让满足缺供、备用、过剩和容量硬约束的状态参加递推。Every annual scenario has its own feasible-state set \(\mathcal F_t\).
@@ -187,6 +195,6 @@ L_t(h)=P^{peak}_t f^{load}_t(h),\qquad
 A^{wind}_{i,t}(h)=P^{design}_i f^{wind}_{i,t}(h).
 \]
 
-目标年定义的候选项目 \(P^{design}_i\)、身份和状态位 \(s_{t,i}\) 在两个阶段保持相同；各年度**既有机组**容量 \(P^{old}_{j,t}\) 必须取该年度源库，不能把终期存量提前放入上一年。年度源库里已列出的候选增量仍由 \(s_{t,i}\) 决定是否投运，不能算入固定存量。因此阶段可用容量按物理机组归并为 \(P_{j,t}=P^{old}_{j,t}+s_{t,j}P^{design}_j\)（对没有对应候选位的机组取第二项为零）。常规水电年度月预算使用该年水文因子与实际投运容量：\(B_{j,m,t}=P_{j,t}H_m u_h f^{hydro}_{j,m,t}\)。Existing capacities and operating profiles are year specific; terminal project design and binary identity are common. Missing annual renewable or hydro records cause an explicit error rather than a silent reuse of terminal weather.
+目标年定义的候选项目 \(P^{design}_i\)、身份和状态位 \(s_{t,i}\) 在两个阶段保持相同；各年度**既有机组**容量 \(P^{old}_{j,t}\) 必须取该年度源库，不能把终期存量提前放入上一年。若年度源库存在终期候选位之外的计划增量，记其容量 \(P^{exo}_{j,t}\) 和等年值费用 \(A^{exo}_{j,t}\)；它是该年度**外生给定**的供给，不占用终期可选位，也不会自动继承到下一年。因此 \(P_{j,t}=P^{old}_{j,t}+P^{exo}_{j,t}+s_{t,j}P^{design}_j\)，阶段固定费改为 \(C_t^{ann}(s)=\sum_i s_{t,i}A_i+\sum_j A^{exo}_{j,t}\)。同站最低出力比例按容量加权，使聚合前后的最低出力MW相同。常规水电月预算为 \(B_{j,m,t}=P_{j,t}H_m u_h f^{hydro}_{j,m,t}\)。Existing capacity and operating profiles are year specific; terminal project design and binary identity remain common. Source-year-only projects are fixed annual scenario inputs with explicit costs, rather than endogenous DP decisions. Missing annual renewable or hydro records cause an error instead of reusing terminal weather.
 
 可选“系数情景”设 \(L_{t-1}(h)=\alpha L_t(h)\)，并复用目标年的天气；它是明确的人为情景，\(\alpha\in(0,1]\)。The published GA–DP synthetic comparison deliberately uses this controlled scenario with \(\alpha=0.82\), so both algorithms query identical stage-cost tables. Neither input mode currently models project construction lead times or commissioning eligibility.

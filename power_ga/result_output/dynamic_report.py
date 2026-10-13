@@ -6,9 +6,12 @@ from pathlib import Path
 
 from openpyxl import Workbook
 
+from ..data_collection.project_case import TECH_LABELS
+
 
 def write_dynamic_report(result, case, output: Path, load_factor: float,
-                         stage_input_mode="scaled", ga_comparison=None):
+                         stage_input_mode="scaled", ga_comparison=None,
+                         exogenous_projects=()):
     """保存阶段状态、建站位与费用，便于EXE下次直接载入画规划图。"""
     tables = Path(output) / "tables"
     tables.mkdir(parents=True, exist_ok=True)
@@ -31,6 +34,21 @@ def write_dynamic_report(result, case, output: Path, load_factor: float,
     sheet.append(headers)
     for row in rows:
         sheet.append(row)
+    # 源库独有项目不属于DP可选位；单列容量与年费，避免被阶段汇总掩盖。
+    exogenous_rows = [(result.stages[0].year, plant.station_id, plant.name,
+                       TECH_LABELS[plant.technology], plant.capacity_mw,
+                       plant.annual_cost_yuan)
+                      for plant in exogenous_projects]
+    if exogenous_rows:
+        headers_exo = ("规划年", "电站ID", "电站", "技术", "外生投运容量MW", "年化资本费元")
+        exo_sheet = book.create_sheet("年度外生计划")
+        exo_sheet.append(headers_exo)
+        for row in exogenous_rows:
+            exo_sheet.append(row)
+        with (tables / "exogenous_projects.csv").open("w", encoding="utf-8-sig", newline="") as stream:
+            writer = csv.writer(stream)
+            writer.writerow(headers_exo)
+            writer.writerows(exogenous_rows)
     comparison_audit = None
     if ga_comparison is not None:
         ga_result, ga_path = ga_comparison
@@ -69,7 +87,7 @@ def write_dynamic_report(result, case, output: Path, load_factor: float,
             writer.writerows((h.generation, h.best_cost_yuan, h.best_feasible,
                               h.feasible_count, h.unique_count) for h in ga_result.history)
     notes = book.create_sheet("模型口径")
-    description = ("前一年读取独立年度源库的负荷、外送、风光和水文；候选项目设计固定为终期"
+    description = ("前一年读取年度源库的存量、负荷、外送、风光和水文；仅当年出现的非终期增量按外生计划计费"
                    if stage_input_mode == "source" else
                    "前一年复用目标年风光曲线并缩放负荷；这是情景预测，不是年度源库重放")
     for item in (("项目", "说明"),
@@ -89,6 +107,8 @@ def write_dynamic_report(result, case, output: Path, load_factor: float,
         "gurobi_objective_yuan": result.gurobi_objective_yuan,
         "discount_rate": result.discount_rate,
         "stage_input_mode": stage_input_mode,
+        "exogenous_projects_count": len(exogenous_rows),
+        "exogenous_annual_cost_yuan": sum(row[-1] for row in exogenous_rows),
         "previous_load_factor": load_factor if stage_input_mode == "scaled" else None,
         "max_balance_residual_mw": max(s.max_balance_residual_mw for s in result.stages),
         "ga_comparison": comparison_audit
