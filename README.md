@@ -85,4 +85,4 @@ All included hourly profiles are synthetic. The editable technology-cost CSV con
 
 Code and original documentation are provided under the [MIT License](LICENSE). Optional dependencies retain their own licenses. / 代码与原创文档采用 MIT 许可证，第三方依赖遵循各自许可证。
 
-For the verified development checkpoint, see [Stage report / 阶段成果](docs/PROGRESS_2026-10-14.md) and [mathematical appendix / 数学推导](docs/MATHEMATICS_APPENDIX.md). / 当前已验证的开发状态、合成测试和适用边界见阶段报告与推导附录。
+For the verified delivery overview, see [Final stage report / 阶段成果总览](docs/FINAL_STAGE_REPORT.md), [development checkpoint / 开发检查点](docs/PROGRESS_2026-10-14.md) and [mathematical appendix / 数学推导](docs/MATHEMATICS_APPENDIX.md). / 阶段成果、可复核进度与推导附录分别列示。
