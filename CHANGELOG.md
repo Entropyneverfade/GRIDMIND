@@ -4,7 +4,7 @@
 
 - 交互查看器新增左键横向框选，浮窗按整小时汇总机组发电、风光弃电、抽蓄和电池充放、本地负荷、外送与区外来电，并显示MWh、平均MW和选段平衡残差。The nonmodal popover reads the archived hourly table and survives no stale redraws.
 - Windows打包脚本只交付根目录当前版EXE；旧版被占用时新版留在应用子目录，历史EXE转移至本地归档；可选创建桌面快捷方式。The repository documents current verified capabilities and practical advantages without publishing private cases.
-- 60项本地合成测试通过；实际四区合成168小时框选的平衡残差为约 $3.64\times10^{-12}$ MWh；冻结EXE的隐藏窗口浮窗验收退出码0，桌面快捷方式指向当前EXE。Sixty local tests and the packaged viewer smoke check passed.
+- 60项本地合成测试通过；实际四区合成168小时框选的平衡残差为约 $`3.64\times10^{-12}`$ MWh；冻结EXE的隐藏窗口浮窗验收退出码0，桌面快捷方式指向当前EXE。Sixty local tests and the packaged viewer smoke check passed.
 
 ## 2026-10-14 — Stage 0.2.9 / 后台绘图窗口修复
 
