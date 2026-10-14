@@ -1,6 +1,7 @@
 """图形样式使用合成逐时数据，核查刻度密度和界限。"""
 
 import unittest
+import csv
 import subprocess
 import tempfile
 from pathlib import Path
@@ -12,12 +13,68 @@ matplotlib.use("Agg")
 from matplotlib.figure import Figure
 
 from power_ga.result_output.viewer import (
-    draw_view, selected_hour_bounds, summarize_selected_hours)
+    aggregate_network_zones, draw_view, load_network_zones,
+    selected_hour_bounds, summarize_selected_hours)
 from power_ga.result_output.origin_plot import _render
 from gridmind_app.main import launch_gui_child
 
 
 class ViewerPlotTests(unittest.TestCase):
+    def test_network_aggregate_cancels_internal_exchange_and_keeps_zone_curves(self):
+        """两区纯合成交换在全网抵消；分区图仍分别保留不同机组与外送。"""
+        base = {f"{kind}_mw": 0.0 for kind in
+                ("coal", "gas", "nuclear", "hydro", "biomass", "csp",
+                 "oil", "geothermal", "solar", "wind")}
+        base.update({"pumped_discharge_mw": 0.0, "battery_discharge_mw": 0.0,
+                     "pumped_charge_mw": 0.0, "battery_charge_mw": 0.0,
+                     "storage_discharge_mw": 0.0, "storage_charge_mw": 0.0,
+                     "storage_energy_end_mwh": 0.0, "wind_curtailment_mw": 0.0,
+                     "solar_curtailment_mw": 0.0, "unserved_mw": 0.0,
+                     "overgeneration_mw": 0.0})
+        exporter = {**base, "coal_mw": 10.0, "imports_mw": 0.0,
+                    "export_mw": 2.0, "domestic_load_mw": 8.0, "load_mw": 10.0}
+        importer = {**base, "hydro_mw": 2.0, "imports_mw": 2.0,
+                    "export_mw": 0.0, "domestic_load_mw": 4.0, "load_mw": 4.0}
+        zones = {"甲区": [exporter, exporter], "乙区": [importer, importer]}
+        total = aggregate_network_zones(zones)
+        self.assertEqual(total[0]["load_mw"], 12.0)
+        self.assertEqual(total[0]["imports_mw"], 0.0)
+        self.assertEqual(total[0]["export_mw"], 0.0)
+        self.assertEqual(dict(summarize_selected_hours(zones["甲区"], 0, 2)["transfer"])["外送"],
+                         4.0)
+        self.assertEqual(summarize_selected_hours(total, 0, 2)["balance_residual_mwh"], 0.0)
+        a = draw_view(Figure(figsize=(8, 5)), zones["甲区"], 0, 2)
+        b = draw_view(Figure(figsize=(8, 5)), zones["乙区"], 0, 2)
+        self.assertIn("煤电", [item.get_label() for item in a.collections])
+        self.assertIn("常规水电", [item.get_label() for item in b.collections])
+        with self.assertRaisesRegex(ValueError, "交换不守恒"):
+            aggregate_network_zones({"甲区": [exporter],
+                                     "乙区": [{**importer, "imports_mw": 1.0}]})
+        with tempfile.TemporaryDirectory() as temporary:
+            tables = Path(temporary) / "tables"
+            tables.mkdir()
+            keys = ("hour", "zone", "demand_mw", "coal_mw", "gas_mw", "hydro_mw",
+                    "biomass_mw", "nuclear_mw", "csp_mw", "oil_mw", "geothermal_mw",
+                    "wind_mw", "solar_mw", "imports_mw", "exports_mw",
+                    "pumped_charge_mw", "pumped_discharge_mw", "battery_charge_mw",
+                    "battery_discharge_mw", "wind_curtailment_mw",
+                    "solar_curtailment_mw", "unserved_mw", "spill_mw")
+            with (tables / "hourly_network.csv").open("w", newline="", encoding="utf-8") as stream:
+                writer = csv.DictWriter(stream, fieldnames=keys)
+                writer.writeheader()
+                for hour in range(2):
+                    for zone, values in (("甲区", exporter), ("乙区", importer)):
+                        original = {"hour": hour, "zone": zone,
+                                    "demand_mw": values["domestic_load_mw"],
+                                    "exports_mw": values["export_mw"],
+                                    "spill_mw": values["overgeneration_mw"]}
+                        writer.writerow({field: original.get(field, values.get(field, 0.0))
+                                         for field in keys})
+            parsed = load_network_zones(Path(temporary), expected_hours=2)
+            self.assertEqual(tuple(parsed), ("甲区", "乙区"))
+            self.assertEqual(parsed["甲区"][1]["export_mw"], 2.0)
+            self.assertEqual(parsed["乙区"][1]["imports_mw"], 2.0)
+
     def test_drag_selection_uses_intersected_integer_hours(self):
         """正反向拖拽都收纳被框触及的整小时，并截在当前周窗口内。"""
         self.assertEqual(selected_hour_bounds(20.2, 23.1, 0, 24), (20, 24))

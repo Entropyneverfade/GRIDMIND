@@ -32,7 +32,9 @@ Gurobi 在 DP 模式中优化**年度状态路径**并与 Bellman 递推交叉�
 - `links.csv`: `name,source,target,limit_mw,kind,susceptance_mw_per_rad`。`kind=ac`需提供正电纳且选择Gurobi LP；`dc`为可控通道，限额两向对称。启发式模式只接受`dc`。/ AC uses phase-angle flow; the heuristic handles controllable channels only.
 - `hourly.csv`: 每个0—8759小时、每区恰有一行；列为 `hour,zone,demand_mw,wind_available_mw,solar_available_mw,pumped_charge_mw,pumped_discharge_mw,battery_charge_mw,battery_discharge_mw`，以及抽蓄和电池各自的 `carbon_t_per_mwh,sulfur_kg_per_mwh,renewable_fraction` 三个属性字段，分别加 `pumped_`、`battery_` 前缀。有对应放电时三属性必须给定。固定充放电须由输入方先验证SOC，本入口只校核逐时功率与属性守恒。/ Pumped storage and batteries have separate hourly flows and discharge attributes.
 
-存档的 `tables/跨区运行和碳硫属性汇总.xlsx` 含分区年度、机组技术、线路利用与逐时属性四页；同目录CSV可复用。`run_manifest.json` 含输入文件SHA-256、求解方式及最大守恒残差。点击“查看8760小时运行图”选一个分区，可按日/周/月/年或任意小时缩放；图中区外来电为独立供给，洋红线为本地需求加外送，淡紫虚线为本地需求。The viewer reads the saved hourly table and does not rerun optimization.
+存档的 `tables/跨区运行和碳硫属性汇总.xlsx` 含分区年度、机组技术、线路利用与逐时属性四页；同目录CSV可复用。`run_manifest.json` 含输入文件SHA-256、求解方式及最大守恒残差。点击“查看8760小时运行图”打开全网图，再用窗口内下拉框选分区；可按日/周/月/年或任意小时缩放。分区图中区外来电为独立供给，洋红线为本地需求加外送，淡紫虚线为本地需求。The viewer reads the saved hourly table and does not rerun optimization.
+
+0.2.11起，分区存档打开后在图上方的“查看范围”下拉框选择“全网汇总”或任一分区，不再需要每次启动都手输分区名。切换后保留当前小时区间、日周月年尺度和框选统计功能；导出当前PNG的默认文件名含分区名。全网汇总将内部进口/出口相抵，只显示各区本地需求总和；各分区图仍单独显示区外来电与外送。只有单区规划结果的存档没有分区逐时表，因此不会出现该下拉框。The selector changes the displayed archived curve without rerunning dispatch.
 
 ## 查看与保存 / View and archive
 

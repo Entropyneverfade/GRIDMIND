@@ -1,6 +1,6 @@
 # GRIDMIND
 
-**请先阅读[五章完整研究报告 / Complete five-chapter report](docs/FINAL_STAGE_REPORT.md)：** 概述、GA与DP、运行规则、纯合成算例参数、结果及全部21张内嵌图片均在同一页面；公式使用GitHub可渲染的数学格式。分区传输与碳/SO₂/新能源属性已提供独立CSV应用入口，尚未接入真实项目GA/DP适应度。The single report contains all current synthetic figures and equations.
+**请先阅读[五章完整研究报告 / Complete five-chapter report](docs/FINAL_STAGE_REPORT.md)：** 概述、GA与DP、运行规则、纯合成算例参数、结果及全部25张内嵌图片均在同一页面；公式使用GitHub可渲染的数学格式。分区传输与碳/SO₂/新能源属性已提供独立CSV应用入口，尚未接入真实项目GA/DP适应度。The single report contains all current synthetic figures and equations.
 
 **0.2.7 弃电规则 / Curtailment:** 项目运行改为按当时风光可用出力份额分摊弃电，重跑三年度合成算例后同时出现弃风和弃光。An explicitly parameterized network prototype and a physical attribute tracing layer are included as separate modules.
 
@@ -9,6 +9,8 @@
 **0.2.9 后台窗口 / Background windows:** 逐图调用Origin时不再弹出PowerShell命令窗口，错误输出继续保存在每张图的`qa/renderer.log`；交互查看器仍按需打开。Origin rendering runs without repeated command windows while the requested chart windows remain available.
 
 **0.2.10 框选统计 / Drag-to-inspect:** 在8760小时查看器内按左键框选时段，浮窗直接汇总各类发电、弃电、储能充放、负荷及外送，显示MWh、平均MW与平衡残差。The popover integrates archived hourly power at 1 h resolution; it does not rerun the solver.
+
+**0.2.11 分区同窗切换 / Zonal viewer:** 分区CSV结果在一张查看器窗口内选择全网汇总或各分区，保留当前小时尺度与框选统计。全网图先验证进口等于出口，再抵消内部交换；各分区仍显示真实的本区进口和外送。The published [four full-year zonal views](docs/FINAL_STAGE_REPORT.md) use fixed synthetic data.
 
 GRIDMIND is a modular research prototype for generation planning and chronological power system operation. GRIDMIND 是模块化的电源规划与全年逐时运行研究原型。桌面入口位于 `gridmind_app/`，算法位于 `power_ga/`，两者通过 `project_main.execute()` 连接。
 
@@ -28,6 +30,7 @@ GRIDMIND is a modular research prototype for generation planning and chronologic
 - Storage charge, discharge and internal energy carry continuously across day and month boundaries. / 储能功率与内部库存跨日、跨月连续。
 - One workbook for annual, monthly, daily, hourly, project, storage, GA and data-quality tables. Static figures are kept in separate figure folders; the desktop viewer supports day, week, month, year and arbitrary hour ranges. / 一份汇总工作簿，图表分开存档，交互窗口支持日周月年和任意小时区间。
 - A separate four-CSV zonal mode solves 8,760 hourly power balances and traces physical carbon, SO₂ and renewable attributes to served demand. / 独立分区入口读取四张CSV、输出潮流与碳硫属性综合表，支持逐区缩放。
+- One zonal viewer switches among the full network and every region without reloading the CSV or resetting the current hour range. / 同一窗口切换全网与各分区8760小时图，保留当前时间范围。
 - Left-button drag selection in the viewer opens an hour-accurate, nonmodal summary of generation, curtailment, storage charge/discharge, imports/exports, load and balance residual. / 查看器可框选整小时并弹出分类电量与平均功率统计。
 
 ## Practical advantages / 当前优势

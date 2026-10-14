@@ -8,6 +8,7 @@ import argparse
 import csv
 import json
 import math
+import re
 from pathlib import Path
 
 from ..common.domain import PLANNING_MONTH_HOURS
@@ -23,6 +24,7 @@ OPTIONAL_FIELDS = ("domestic_load_mw", "export_mw", "coal_mw", "gas_mw", "hydro_
                    "biomass_mw", "pumped_charge_mw", "pumped_discharge_mw",
                    "battery_charge_mw", "battery_discharge_mw", "reserve_shortfall_mw")
 MONTH_HOURS = PLANNING_MONTH_HOURS  # 与运行引擎及逐月工作簿相同的365日规划年。
+ALL_ZONES_LABEL = "全网汇总"
 
 # 框选统计只列数据实际包含的字段；分区案例的附加机组类型也逐项显示。
 GENERATION_LABELS = (("coal_mw", "煤电"), ("gas_mw", "燃气"),
@@ -51,8 +53,8 @@ def load_hours(result_dir: Path):
     return hours
 
 
-def load_network_hours(result_dir: Path, zone_name: str):
-    """把分区逐时表转换为同一缩放窗口的数据契约；外送并入总需求。"""
+def load_network_zones(result_dir: Path, *, selected=None, expected_hours=8760):
+    """一次读取分区逐时存档；每个分区保留独立的8760小时曲线。"""
     path = Path(result_dir) / "tables" / "hourly_network.csv"
     technologies = ("coal", "gas", "hydro", "biomass", "nuclear", "csp",
                     "oil", "geothermal")
@@ -62,16 +64,18 @@ def load_network_hours(result_dir: Path, zone_name: str):
                 "pumped_charge_mw", "pumped_discharge_mw", "battery_charge_mw",
                 "battery_discharge_mw", "wind_curtailment_mw",
                 "solar_curtailment_mw", "unserved_mw", "spill_mw")
-    hours = []
+    zones = {}
     with path.open(encoding="utf-8-sig", newline="") as stream:
         reader = csv.DictReader(stream)
         if not set(required).issubset(reader.fieldnames or ()):
             raise ValueError("分区逐时表缺少运行图字段")
         for row in reader:
-            if row["zone"] != zone_name:
+            zone_name = row["zone"]
+            if selected is not None and zone_name != selected:
                 continue
+            hours = zones.setdefault(zone_name, [])
             if int(row["hour"]) != len(hours):
-                raise ValueError("分区逐时序列断号")
+                raise ValueError(f"分区{zone_name}逐时序列断号或重复")
             demand, outgoing = float(row["demand_mw"]), float(row["exports_mw"])
             pumped_charge, battery_charge = (float(row["pumped_charge_mw"]),
                                                float(row["battery_charge_mw"]))
@@ -95,9 +99,49 @@ def load_network_hours(result_dir: Path, zone_name: str):
                           "solar_curtailment_mw": float(row["solar_curtailment_mw"]),
                           "unserved_mw": float(row["unserved_mw"]),
                           "overgeneration_mw": float(row["spill_mw"])})
-    if len(hours) != 8760:
-        raise ValueError(f"分区查看窗口需要8760小时，{zone_name}只有{len(hours)}小时")
-    return hours
+    if not zones:
+        raise ValueError(f"分区逐时表没有找到分区：{selected or path}")
+    for zone_name, hours in zones.items():
+        if len(hours) != expected_hours:
+            raise ValueError(f"分区查看窗口需要{expected_hours}小时，{zone_name}只有{len(hours)}小时")
+    return zones
+
+
+def load_network_hours(result_dir: Path, zone_name: str):
+    """兼容单区静态图入口，只读取指定分区的逐时数据。"""
+    return load_network_zones(result_dir, selected=zone_name)[zone_name]
+
+
+def aggregate_network_zones(zones):
+    """将区域图合成全网图；区内互济在全网边界处相互抵消。"""
+    if not zones:
+        raise ValueError("全网汇总至少需要一个分区")
+    lengths = {len(hours) for hours in zones.values()}
+    if len(lengths) != 1:
+        raise ValueError("分区小时数不一致，不能汇总")
+    size = lengths.pop()
+    fields = tuple(next(iter(zones.values()))[0])
+    aggregate = []
+    for hour in range(size):
+        parts = [rows[hour] for rows in zones.values()]
+        incoming = sum(part["imports_mw"] for part in parts)
+        outgoing = sum(part["export_mw"] for part in parts)
+        if abs(incoming - outgoing) > 1e-5:
+            raise ValueError(f"第{hour}小时全网交换不守恒，不能绘制汇总图")
+        # 全网内部联络交换两端相抵：总需求只取Σ本地负荷，进口/出口都归零。
+        total = {field: sum(part[field] for part in parts) for field in fields}
+        total["load_mw"] = total["domestic_load_mw"]
+        total["imports_mw"] = total["export_mw"] = 0.0
+        aggregate.append(total)
+    return aggregate
+
+
+def load_network_views(result_dir: Path):
+    """为单窗口准备全网和各分区曲线，切换时无需重复读取CSV。"""
+    zones = load_network_zones(result_dir)
+    if ALL_ZONES_LABEL in zones:
+        raise ValueError("分区名称“全网汇总”为查看器保留名称")
+    return {ALL_ZONES_LABEL: aggregate_network_zones(zones), **zones}
 
 
 def period_bounds(scale: str, number: int):
@@ -444,8 +488,8 @@ def export_monthly_views(hours, destination: Path):
     return event_rows
 
 
-def launch(hours, smoke=False):
-    """建立用户可见Tk窗口，提供尺度切换、翻页、任意区间和图片导出。"""
+def launch(hours, smoke=False, zone_options=None, initial_zone=None):
+    """建立交互窗口；分区存档在同一画布切换全网及各区8760小时曲线。"""
     import tkinter as tk
     from tkinter import filedialog, messagebox, ttk
     import matplotlib
@@ -460,8 +504,25 @@ def launch(hours, smoke=False):
     root = tk.Tk()
     if smoke:
         root.withdraw()  # 后台验证Tk画布，不抢用户前台窗口。
-    root.title("源荷储8760小时运行图")
+    if zone_options:
+        initial_zone = initial_zone or next(iter(zone_options))
+        if initial_zone not in zone_options:
+            raise ValueError(f"查看器没有分区：{initial_zone}")
+        hours = zone_options[initial_zone]
+    root.title("源网荷储8760小时运行图" if zone_options else "源荷储8760小时运行图")
     root.geometry("1380x820")
+    zone_choice = tk.StringVar(value=initial_zone or "")
+    zone_select = None
+    if zone_options:
+        # 分区选择独占一行，避免窄屏把日周月年和框选控件挤出可见范围。
+        zone_bar = ttk.Frame(root, padding=(7, 7, 7, 0))
+        zone_bar.pack(side="top", fill="x")
+        ttk.Label(zone_bar, text="查看范围").pack(side="left")
+        zone_select = ttk.Combobox(zone_bar, textvariable=zone_choice,
+                                   values=tuple(zone_options), state="readonly", width=22)
+        zone_select.pack(side="left", padx=(5, 12))
+        ttk.Label(zone_bar, text="全网汇总将内部联络线进口与出口相抵；选择分区可查看该区逐时互济",
+                  foreground="#46556A").pack(side="left")
     controls = ttk.Frame(root, padding=7)
     controls.pack(side="top", fill="x")
     scale = tk.StringVar(value="日")
@@ -512,14 +573,14 @@ def launch(hours, smoke=False):
         canvas.draw_idle()
         popup = tk.Toplevel(root)
         selection_popup = popup
-        popup.title(f"时段统计 · 小时 {first}–{last - 1}")
+        popup.title(f"{zone_choice.get() + ' · ' if zone_options else ''}时段统计 · 小时 {first}–{last - 1}")
         popup.transient(root)
         popup.protocol("WM_DELETE_WINDOW", close_selection_popup)
         if smoke:
             popup.withdraw()  # 后台GUI验收不抢占用户前台窗口。
         heading = ttk.Frame(popup, padding=(12, 10))
         heading.pack(fill="x")
-        ttk.Label(heading, text=f"全年小时 {first}–{last - 1}  ·  共 {report['hours']} 小时",
+        ttk.Label(heading, text=f"{zone_choice.get() + ' · ' if zone_options else ''}全年小时 {first}–{last - 1}  ·  共 {report['hours']} 小时",
                   font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w")
         ttk.Label(heading, text="电量 = 逐小时功率 × 1 h；平均功率 = 时段电量 ÷ 小时数",
                   foreground="#46556A").pack(anchor="w", pady=(3, 0))
@@ -564,8 +625,9 @@ def launch(hours, smoke=False):
         nonlocal displayed, selector, selection_patch
         try:
             a, b = int(a), int(b)
-            view_label = (f"第{number.get()}{scale.get()}" if scale.get() in {"日", "周", "月"}
-                          else "全年8760小时" if scale.get() == "年" else f"自定义小时 {a}–{b - 1}")
+            period_label = (f"第{number.get()}{scale.get()}" if scale.get() in {"日", "周", "月"}
+                            else "全年8760小时" if scale.get() == "年" else f"自定义小时 {a}–{b - 1}")
+            view_label = (f"{zone_choice.get()} · {period_label}" if zone_options else period_label)
             state = (a, b, view_label, scale.get() == "月")
             if state != displayed:
                 close_selection_popup()
@@ -581,7 +643,8 @@ def launch(hours, smoke=False):
                 canvas.draw_idle()
             start_text.set(str(a))
             end_text.set(str(b))
-            status.set(f"当前窗口：全年小时 {a}–{b - 1}，共 {b - a} 小时")
+            region = f"{zone_choice.get()}；" if zone_options else ""
+            status.set(f"当前窗口：{region}全年小时 {a}–{b - 1}，共 {b - a} 小时")
         except (ValueError, IndexError) as error:
             messagebox.showerror("时间范围错误", str(error), parent=root)
 
@@ -594,6 +657,14 @@ def launch(hours, smoke=False):
                 redraw(*period_bounds(scale.get(), int(number.get())))
         except ValueError as error:
             messagebox.showerror("序号错误", str(error), parent=root)
+
+    def switch_region(_event=None):
+        """保留当前小时区间，在缓存曲线中换区并重建选择器和图例。"""
+        nonlocal hours
+        if zone_options:
+            hours = zone_options[zone_choice.get()]
+            if displayed is not None:
+                redraw(displayed[0], displayed[1])
 
     def shift(direction):
         """按当前尺度翻页；自定义区间保持宽度平移，不改变观察小时数。"""
@@ -611,7 +682,10 @@ def launch(hours, smoke=False):
 
     def save_picture():
         """只导出当前显示时间窗口；全年原始表和Origin工程不受影响。"""
+        name = re.sub(r'[<>:"/\\|?*]', "_", zone_choice.get()) if zone_options else "system"
+        a, b = displayed[:2]
         path = filedialog.asksaveasfilename(parent=root, title="保存当前视图", defaultextension=".png",
+                                            initialfile=f"{name}_hour_{a}_{b - 1}.png",
                                             filetypes=[("PNG图片", "*.png")])
         if path:
             fig.savefig(path, dpi=240, facecolor="white")
@@ -622,9 +696,15 @@ def launch(hours, smoke=False):
     ttk.Button(controls, text="前一段", command=lambda: shift(-1)).pack(side="left", padx=4)
     ttk.Button(controls, text="后一段", command=lambda: shift(1)).pack(side="left", padx=4)
     ttk.Button(controls, text="导出当前PNG", command=save_picture).pack(side="left", padx=4)
+    if zone_select is not None:
+        zone_select.bind("<<ComboboxSelected>>", switch_region)
     ttk.Label(root, textvariable=status, padding=6).pack(side="bottom", fill="x")
     redraw(0, 24)
     if smoke:
+        if zone_options and len(zone_options) > 1:
+            # 冻结EXE后台验收要真实切换另一分区，而不只检查初始汇总图。
+            zone_choice.set(next(name for name in zone_options if name != initial_zone))
+            switch_region()
         # 选中半小时至第三小时，验证统计浮窗、整数边界和Tk控件能后台创建。
         show_selection(0.5, 2.2)
         root.update_idletasks()

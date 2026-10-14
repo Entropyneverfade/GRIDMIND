@@ -12,7 +12,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-APP_VERSION = "0.2.10"
+APP_VERSION = "0.2.11"
 
 # 直接运行本文件或单文件EXE时，让窗口入口可导入同级算法包。
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -192,7 +192,7 @@ def show_dp_window(result_dir):
 def launch_app(smoke=False):
     """主窗口通过后台线程计算，Tk只负责文件选择、进度和查看结果。"""
     import tkinter as tk
-    from tkinter import filedialog, messagebox, simpledialog, ttk
+    from tkinter import filedialog, messagebox, ttk
     import matplotlib
 
     matplotlib.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimSun", "DejaVu Sans"]
@@ -391,16 +391,8 @@ def launch_app(smoke=False):
         if last_result["path"]:
             folder = Path(last_result["path"])
             if (folder / "tables" / "hourly_network.csv").is_file():
-                with (folder / "tables" / "zone_summary.csv").open(encoding="utf-8-sig", newline="") as stream:
-                    zones = [row["zone"] for row in csv.DictReader(stream)]
-                selected = simpledialog.askstring("选择分区", "输入要查看的分区：" + "、".join(zones),
-                                                  initialvalue=zones[0], parent=root)
-                if selected is None:
-                    return
-                if selected not in zones:
-                    messagebox.showerror("分区错误", "请输入汇总表中的精确分区名称", parent=root)
-                    return
-                flag = ["--network-viewer", str(folder), selected]
+                # 分区结果直接打开同一查看器；用户在图内下拉切换全网及各区。
+                flag = ["--network-viewer", str(folder), "全网汇总"]
             else:
                 flag = ["--viewer", str(folder)]
             args = ([sys.executable, *flag] if getattr(sys, "frozen", False) else
@@ -513,6 +505,7 @@ def main():
     parser.add_argument("--viewer", type=Path)
     parser.add_argument("--viewer-smoke", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--network-viewer", nargs=2, metavar=("RESULT_DIR", "ZONE"))
+    parser.add_argument("--network-viewer-smoke", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--export-demo-views", nargs=2, type=Path,
                         metavar=("RESULT_DIR", "IMAGE_DIR"),
                         help="用同一窗口绘图函数导出日、周、月、年和自定义时段PNG")
@@ -657,10 +650,18 @@ def main():
         result_dir, image_dir = args.export_demo_views
         export_predefined_views(load_hours(result_dir), image_dir)
     elif args.network_viewer:
-        from power_ga.result_output.viewer import launch, load_network_hours
+        from power_ga.result_output.viewer import launch, load_network_views
 
         folder, zone = args.network_viewer
-        launch(load_network_hours(Path(folder), zone))
+        views = load_network_views(Path(folder))
+        launch(views[zone], zone_options=views, initial_zone=zone)
+    elif args.network_viewer_smoke:
+        # 冻结包后台验收：创建全网图、切到分区并打开框选浮窗。
+        from power_ga.result_output.viewer import launch, load_network_views
+
+        views = load_network_views(args.network_viewer_smoke)
+        launch(views["全网汇总"], zone_options=views,
+               initial_zone="全网汇总", smoke=True)
     elif args.viewer:
         from power_ga.result_output.viewer import launch, load_hours
         import matplotlib
