@@ -12,7 +12,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-APP_VERSION = "0.2.8"
+APP_VERSION = "0.2.10"
 
 # 直接运行本文件或单文件EXE时，让窗口入口可导入同级算法包。
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -48,6 +48,13 @@ def default_figure_backend():
             return "origin"
     except (OSError, ImportError):
         return "python"
+
+
+def launch_gui_child(args):
+    """启动结果查看器而不附带Windows命令窗口；图形窗口仍正常显示。"""
+    # 源码模式使用python.exe时也可能分配控制台；CREATE_NO_WINDOW只抑制控制台。
+    hidden_console = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    return subprocess.Popen(args, creationflags=hidden_console)
 
 
 def show_ga_window(result_dir):
@@ -398,7 +405,7 @@ def launch_app(smoke=False):
                 flag = ["--viewer", str(folder)]
             args = ([sys.executable, *flag] if getattr(sys, "frozen", False) else
                     [sys.executable, str(Path(__file__).resolve()), *flag])
-            subprocess.Popen(args)
+            launch_gui_child(args)
 
     def open_ga():
         """按存档类型选择遗传收敛图或动态规划年度图。"""
@@ -407,7 +414,7 @@ def launch_app(smoke=False):
                                 "dynamic_stages.csv").is_file() else "--ga")
             args = ([sys.executable, flag, str(last_result["path"])] if getattr(sys, "frozen", False) else
                     [sys.executable, str(Path(__file__).resolve()), flag, str(last_result["path"])])
-            subprocess.Popen(args)
+            launch_gui_child(args)
 
     def open_folder():
         """使用系统资源管理器打开本次归档目录。"""
@@ -504,6 +511,7 @@ def main():
     """EXE自身既是主窗口，也可启动独立运行图和遗传图窗口。"""
     parser = argparse.ArgumentParser(description="GRIDMIND桌面应用")
     parser.add_argument("--viewer", type=Path)
+    parser.add_argument("--viewer-smoke", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--network-viewer", nargs=2, metavar=("RESULT_DIR", "ZONE"))
     parser.add_argument("--export-demo-views", nargs=2, type=Path,
                         metavar=("RESULT_DIR", "IMAGE_DIR"),
@@ -659,6 +667,10 @@ def main():
         matplotlib.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimSun", "DejaVu Sans"]
         matplotlib.rcParams["axes.unicode_minus"] = False
         launch(load_hours(args.viewer))
+    elif args.viewer_smoke:
+        # 冻结包也要创建真实Tk画布和框选浮窗，再后台销毁，不打扰桌面。
+        from power_ga.result_output.viewer import launch, load_hours
+        launch(load_hours(args.viewer_smoke), smoke=True)
     elif args.ga:
         show_ga_window(args.ga)
     elif args.dp:

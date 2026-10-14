@@ -24,6 +24,13 @@ OPTIONAL_FIELDS = ("domestic_load_mw", "export_mw", "coal_mw", "gas_mw", "hydro_
                    "battery_charge_mw", "battery_discharge_mw", "reserve_shortfall_mw")
 MONTH_HOURS = PLANNING_MONTH_HOURS  # 与运行引擎及逐月工作簿相同的365日规划年。
 
+# 框选统计只列数据实际包含的字段；分区案例的附加机组类型也逐项显示。
+GENERATION_LABELS = (("coal_mw", "煤电"), ("gas_mw", "燃气"),
+                     ("nuclear_mw", "核电"), ("hydro_mw", "常规水电"),
+                     ("biomass_mw", "生物质"), ("csp_mw", "光热"),
+                     ("oil_mw", "燃油"), ("geothermal_mw", "地热"),
+                     ("solar_mw", "光伏"), ("wind_mw", "风电"))
+
 
 def load_hours(result_dir: Path):
     """读完整8760小时CSV；对缺列、断号和非数值立即报错。"""
@@ -114,6 +121,62 @@ def period_bounds(scale: str, number: int):
     else:
         raise ValueError(f"未知查看尺度: {scale}")
     return start, end
+
+
+def selected_hour_bounds(xmin: float, xmax: float, visible_start: int, visible_end: int):
+    """把鼠标拖拽的连续x坐标映射到与所覆盖小时相交的左闭右开区间。"""
+    if not math.isfinite(xmin) or not math.isfinite(xmax):
+        raise ValueError("框选坐标必须为有限小时数")
+    # 小时h代表[h,h+1)；拖到边界两侧时用floor/ceil收纳所有被框触及的小时。
+    start = max(visible_start, min(visible_end - 1, math.floor(min(xmin, xmax))))
+    end = max(start + 1, min(visible_end, math.ceil(max(xmin, xmax))))
+    return start, end
+
+
+def summarize_selected_hours(hours, start: int, end: int):
+    """从已存档逐时值计算框选电量，输出按供给、弃电、储能、需求分组的表行。"""
+    if not 0 <= start < end <= len(hours):
+        raise ValueError("框选小时区间超出逐时数据")
+    part, count = hours[start:end], end - start
+    sample = part[0]
+
+    def total(field):
+        # 时间步长固定1h：E[MWh]=Σ_t P_t[MW]×1h；平均功率=E/框选小时数。
+        return sum(row[field] for row in part)
+
+    generation = []
+    if "coal_mw" not in sample and "thermal_mw" in sample:
+        generation.append(("火电", total("thermal_mw")))
+    generation.extend((label, total(field)) for field, label in GENERATION_LABELS
+                      if field in sample)
+    if "pumped_discharge_mw" in sample:
+        discharge = [("抽蓄放电", total("pumped_discharge_mw")),
+                     ("电池放电", total("battery_discharge_mw"))]
+        charge = [("抽蓄充电", total("pumped_charge_mw")),
+                  ("电池充电", total("battery_charge_mw"))]
+    else:
+        discharge = [("储能放电", total("storage_discharge_mw"))]
+        charge = [("储能充电", total("storage_charge_mw"))]
+    # 进口属于供给但不是本区发电，故单独列在“跨区”而不并入发电小计。
+    transfer = [("区外来电", total("imports_mw"))] if "imports_mw" in sample else []
+    if "export_mw" in sample:
+        transfer.append(("外送", total("export_mw")))
+    demand = ([('本地负荷', total('domestic_load_mw'))]
+              if 'domestic_load_mw' in sample else [])
+    demand.append(("总需求（含外送）", total("load_mw")))
+    curtailment = [("弃风", total("wind_curtailment_mw")),
+                   ("弃光", total("solar_curtailment_mw"))]
+    other = [("缺供", total("unserved_mw")),
+             ("未消纳过剩", total("overgeneration_mw"))]
+    # 用归档值独立核对选段电量平衡；弃电是未发出的可用量，不参加供需相加。
+    residual = (sum(value for _, value in generation + discharge) +
+                sum(value for label, value in transfer if label == "区外来电") +
+                total("unserved_mw") - total("load_mw") -
+                sum(value for _, value in charge) - total("overgeneration_mw"))
+    return {"start": start, "end": end, "hours": count, "generation": generation,
+            "curtailment": curtailment, "storage": discharge + charge,
+            "transfer": transfer, "demand": demand, "other": other,
+            "balance_residual_mwh": residual}
 
 
 def _step(values):
@@ -388,6 +451,7 @@ def launch(hours, smoke=False):
     import matplotlib
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
     from matplotlib.figure import Figure
+    from matplotlib.widgets import SpanSelector
 
     # 独立EXE子窗口也设置中文字体，避免分区名称和图例显示为方框。
     matplotlib.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimSun", "DejaVu Sans"]
@@ -405,6 +469,9 @@ def launch(hours, smoke=False):
     start_text, end_text = tk.StringVar(value="0"), tk.StringVar(value="24")
     status = tk.StringVar(value="数据：8760小时；窗口按小时序号定位")
     displayed = None  # 相同窗口不重建上万个面积顶点，减少重复点击引起的卡顿。
+    selector = None  # Matplotlib选择器须保持引用，切图时解绑旧坐标轴事件。
+    selection_popup = None
+    selection_patch = None
     ttk.Label(controls, text="尺度").pack(side="left")
     ttk.Combobox(controls, textvariable=scale, values=("日", "周", "月", "年", "自定义"),
                  width=8, state="readonly").pack(side="left", padx=4)
@@ -414,6 +481,7 @@ def launch(hours, smoke=False):
     ttk.Entry(controls, textvariable=start_text, width=7).pack(side="left", padx=4)
     ttk.Label(controls, text="结束小时（不含）").pack(side="left", padx=(10, 0))
     ttk.Entry(controls, textvariable=end_text, width=7).pack(side="left", padx=4)
+    ttk.Label(controls, text="图内左键拖拽查看时段统计").pack(side="left", padx=(12, 0))
     fig = Figure(figsize=(13, 7), dpi=100)
     canvas = FigureCanvasTkAgg(fig, master=root)
     canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
@@ -421,16 +489,94 @@ def launch(hours, smoke=False):
     toolbar.update()
     toolbar.pack(side="bottom", fill="x")
 
+    def close_selection_popup():
+        """切图或关闭统计窗时释放旧窗口，避免堆积遮挡主图。"""
+        nonlocal selection_popup
+        if selection_popup is not None and selection_popup.winfo_exists():
+            selection_popup.destroy()
+        selection_popup = None
+
+    def show_selection(xmin, xmax):
+        """鼠标松开后按整数小时汇总，并在指针附近显示非模态统计浮窗。"""
+        nonlocal selection_popup, selection_patch
+        if toolbar.mode or displayed is None:
+            return  # 工具栏平移/缩放优先，避免同一次鼠标动作触发两种模式。
+        first, last = selected_hour_bounds(xmin, xmax, displayed[0], displayed[1])
+        report = summarize_selected_hours(hours, first, last)
+        close_selection_popup()
+        if selection_patch is not None:
+            selection_patch.remove()
+        # 淡蓝色范围只用于定位；数值始终来自原始逐时表而不是图上像素。
+        selection_patch = fig.axes[0].axvspan(first, last, color="#2466B3",
+                                              alpha=0.13, zorder=10)
+        canvas.draw_idle()
+        popup = tk.Toplevel(root)
+        selection_popup = popup
+        popup.title(f"时段统计 · 小时 {first}–{last - 1}")
+        popup.transient(root)
+        popup.protocol("WM_DELETE_WINDOW", close_selection_popup)
+        if smoke:
+            popup.withdraw()  # 后台GUI验收不抢占用户前台窗口。
+        heading = ttk.Frame(popup, padding=(12, 10))
+        heading.pack(fill="x")
+        ttk.Label(heading, text=f"全年小时 {first}–{last - 1}  ·  共 {report['hours']} 小时",
+                  font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w")
+        ttk.Label(heading, text="电量 = 逐小时功率 × 1 h；平均功率 = 时段电量 ÷ 小时数",
+                  foreground="#46556A").pack(anchor="w", pady=(3, 0))
+        table_frame = ttk.Frame(popup, padding=(12, 0, 12, 7))
+        table_frame.pack(fill="both", expand=True)
+        table = ttk.Treeview(table_frame, columns=("energy", "average"), show="tree headings",
+                             height=20)
+        table.heading("#0", text="项目")
+        table.heading("energy", text="时段电量 / MWh")
+        table.heading("average", text="平均功率 / MW")
+        table.column("#0", width=185, stretch=True)
+        table.column("energy", width=135, anchor="e", stretch=False)
+        table.column("average", width=125, anchor="e", stretch=False)
+        scroll = ttk.Scrollbar(table_frame, orient="vertical", command=table.yview)
+        table.configure(yscrollcommand=scroll.set)
+        table.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
+        for key, title in (("generation", "各类机组发电"),
+                           ("curtailment", "弃电"), ("storage", "储能充放电"),
+                           ("transfer", "跨区交换"), ("demand", "负荷"),
+                           ("other", "缺供与过剩")):
+            rows = report[key]
+            if not rows:
+                continue
+            parent = table.insert("", "end", text=title, open=True)
+            for label, energy in rows:
+                table.insert(parent, "end", text=label,
+                             values=(f"{energy:,.3f}", f"{energy / report['hours']:,.3f}"))
+        ttk.Label(popup, text=f"时段功率平衡残差：{report['balance_residual_mwh']:.6g} MWh",
+                  padding=(12, 0, 12, 10), foreground="#46556A").pack(anchor="w")
+        popup.update_idletasks()
+        width, height = 510, min(690, popup.winfo_reqheight())
+        x = min(root.winfo_pointerx() + 18, root.winfo_screenwidth() - width - 12)
+        y = min(root.winfo_pointery() + 18, root.winfo_screenheight() - height - 50)
+        popup.geometry(f"{width}x{height}+{max(0, x)}+{max(0, y)}")
+        if not smoke:
+            popup.lift(root)
+        status.set(f"已框选全年小时 {first}–{last - 1}，共 {report['hours']} 小时；详见统计浮窗")
+
     def redraw(a, b):
         """应用左闭右开区间，刷新供给、弃电、充电同图的单张堆叠视图。"""
-        nonlocal displayed
+        nonlocal displayed, selector, selection_patch
         try:
             a, b = int(a), int(b)
             view_label = (f"第{number.get()}{scale.get()}" if scale.get() in {"日", "周", "月"}
                           else "全年8760小时" if scale.get() == "年" else f"自定义小时 {a}–{b - 1}")
             state = (a, b, view_label, scale.get() == "月")
             if state != displayed:
+                close_selection_popup()
+                if selector is not None:
+                    selector.disconnect_events()
                 draw_view(fig, hours, a, b, view_label, mark_month_events=state[3])
+                selection_patch = None
+                # 每次切图后的Axes是新对象；选择器须绑定新Axes并保持引用。
+                selector = SpanSelector(fig.axes[0], show_selection, "horizontal",
+                                        useblit=True, button=1, minspan=0.05,
+                                        props={"facecolor": "#2466B3", "alpha": 0.25})
                 displayed = state
                 canvas.draw_idle()
             start_text.set(str(a))
@@ -479,6 +625,8 @@ def launch(hours, smoke=False):
     ttk.Label(root, textvariable=status, padding=6).pack(side="bottom", fill="x")
     redraw(0, 24)
     if smoke:
+        # 选中半小时至第三小时，验证统计浮窗、整数边界和Tk控件能后台创建。
+        show_selection(0.5, 2.2)
         root.update_idletasks()
         root.destroy()
         print("Tk窗口控件后台校验通过")

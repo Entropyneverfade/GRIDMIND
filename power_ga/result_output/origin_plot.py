@@ -7,6 +7,7 @@ Python只把结果转换为阶梯边界和数据表；真正的曲线、填色�
 import csv
 import json
 import math
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -73,8 +74,11 @@ def _render(folder: Path, columns, plots, spec, source_rows, source_header):
         encoding="utf-8")
     command = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
                "-File", str(renderer), "-SpecPath", str(spec_path)]
-    # 全年阶梯图保留每个小时的真实点位，后台Origin读写更多单元格。
-    completed = subprocess.run(command, capture_output=True, timeout=240)
+    # 每张Origin图都会调用一次PowerShell；Windows下禁止它创建可见命令窗口。
+    # 标准输出、错误输出和超时仍由run接管，失败详情照常写入renderer.log。
+    hidden_console = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    completed = subprocess.run(command, capture_output=True, timeout=240,
+                               creationflags=hidden_console)
     log = completed.stdout.decode("utf-8", errors="replace") + completed.stderr.decode("utf-8", errors="replace")
     (folder / "qa" / "renderer.log").write_text(log, encoding="utf-8")
     if completed.returncode:

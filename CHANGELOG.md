@@ -1,5 +1,16 @@
 # Development progress / 开发进度
 
+## 2026-10-14 — Stage 0.2.10 / 框选统计与单一EXE交付
+
+- 交互查看器新增左键横向框选，浮窗按整小时汇总机组发电、风光弃电、抽蓄和电池充放、本地负荷、外送与区外来电，并显示MWh、平均MW和选段平衡残差。The nonmodal popover reads the archived hourly table and survives no stale redraws.
+- Windows打包脚本只交付根目录当前版EXE；旧版被占用时新版留在应用子目录，历史EXE转移至本地归档；可选创建桌面快捷方式。The repository documents current verified capabilities and practical advantages without publishing private cases.
+- 60项本地合成测试通过；实际四区合成168小时框选的平衡残差为约 $3.64\times10^{-12}$ MWh；冻结EXE的隐藏窗口浮窗验收退出码0，桌面快捷方式指向当前EXE。Sixty local tests and the packaged viewer smoke check passed.
+
+## 2026-10-14 — Stage 0.2.9 / 后台绘图窗口修复
+
+- Origin逐图绘制时，Windows PowerShell子进程以无控制台方式启动，渲染输出仍保存于每图`qa/renderer.log`；启动交互查看器的源码模式同样抑制多余控制台，保留用户所需GUI窗口。Windows rendering and viewer child processes no longer create extra command windows; renderer logs remain archived.
+- 58项本地测试通过；独立纯合成输入实际导出两张Origin图，各自PNG、PDF、OPJU及日志齐全；新版单文件EXE启动和归档Python绘图退出码均为0。No dispatch, optimization or figure data changed in this maintenance release.
+
 ## 2026-10-14 — Stage 0.2.8 / 分区CSV应用入口与属性归档
 
 - 单区项目运行的削峰放电改为小额定MW储能站先行，同容量按站ID；合成反例验证输入行大站在前仍由小站先供2MW，逐时功率/SOC残差保持容差内。周图的弃风、弃光分别使用密反/正斜线，薄弃电小时加真实MW定位标注；图例及面积均不改写原数据。Small rated-power storage gets peak-shaving priority; dense opposite hatches and value callouts clarify sparse curtailment.

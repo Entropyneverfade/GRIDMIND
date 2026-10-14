@@ -1,16 +1,53 @@
 """图形样式使用合成逐时数据，核查刻度密度和界限。"""
 
 import unittest
+import subprocess
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 
 import matplotlib
 
 matplotlib.use("Agg")
 from matplotlib.figure import Figure
 
-from power_ga.result_output.viewer import draw_view
+from power_ga.result_output.viewer import (
+    draw_view, selected_hour_bounds, summarize_selected_hours)
+from power_ga.result_output.origin_plot import _render
+from gridmind_app.main import launch_gui_child
 
 
 class ViewerPlotTests(unittest.TestCase):
+    def test_drag_selection_uses_intersected_integer_hours(self):
+        """正反向拖拽都收纳被框触及的整小时，并截在当前周窗口内。"""
+        self.assertEqual(selected_hour_bounds(20.2, 23.1, 0, 24), (20, 24))
+        self.assertEqual(selected_hour_bounds(2034.8, 2022.3, 2016, 2184),
+                         (2022, 2035))
+
+    def test_selected_interval_sums_generation_curtailment_storage_and_export(self):
+        """两小时的电量由原始MW逐项积分，外送不重复计入本地负荷。"""
+        first = {"coal_mw": 8.0, "gas_mw": 0.0, "hydro_mw": 0.0,
+                 "biomass_mw": 0.0, "wind_mw": 3.0, "solar_mw": 0.0,
+                 "pumped_discharge_mw": 0.0, "battery_discharge_mw": 0.0,
+                 "pumped_charge_mw": 1.0, "battery_charge_mw": 0.0,
+                 "storage_discharge_mw": 0.0, "storage_charge_mw": 1.0,
+                 "domestic_load_mw": 8.0, "export_mw": 2.0, "load_mw": 10.0,
+                 "wind_curtailment_mw": 2.0, "solar_curtailment_mw": 1.0,
+                 "unserved_mw": 0.0, "overgeneration_mw": 0.0}
+        second = {**first, "coal_mw": 7.0, "wind_mw": 2.0,
+                  "pumped_charge_mw": 0.0, "storage_charge_mw": 0.0,
+                  "pumped_discharge_mw": 1.0, "storage_discharge_mw": 1.0,
+                  "wind_curtailment_mw": 0.0, "solar_curtailment_mw": 0.0}
+        report = summarize_selected_hours([first, second], 0, 2)
+        self.assertEqual(report["hours"], 2)
+        self.assertEqual(dict(report["generation"])["煤电"], 15.0)
+        self.assertEqual(dict(report["curtailment"])["弃风"], 2.0)
+        self.assertEqual(dict(report["storage"])["抽蓄充电"], 1.0)
+        self.assertEqual(dict(report["storage"])["抽蓄放电"], 1.0)
+        self.assertEqual(dict(report["transfer"])["外送"], 4.0)
+        self.assertEqual(dict(report["demand"])["本地负荷"], 16.0)
+        self.assertEqual(report["balance_residual_mwh"], 0.0)
+
     def test_week_axis_is_readable_and_storage_is_visible(self):
         """周图可见两端真刻度、纵轴不形成黑线，充电仍在堆叠图负半轴。"""
         hour = {"load_mw": 95.0, "thermal_mw": 70.0,
@@ -47,6 +84,25 @@ class ViewerPlotTests(unittest.TestCase):
         labels = [artist.get_text() for artist in axes.texts]
         self.assertTrue(any("弃风 1.25 MW" in label and "弃光 2.75 MW" in label
                             for label in labels))
+
+    def test_origin_renderer_hides_console_and_keeps_log(self):
+        """Origin后台子进程不弹控制台；绘图日志仍写入一图一目录。"""
+        with tempfile.TemporaryDirectory() as temporary, patch(
+                "power_ga.result_output.origin_plot.subprocess.run",
+                return_value=subprocess.CompletedProcess([], 0, b"rendered", b"")) as run:
+            folder = Path(temporary) / "figure"
+            _render(folder, {"hour": [0, 1]}, [], {"name": "smoke"}, [[0], [1]], ["hour"])
+            self.assertTrue(folder.joinpath("qa", "renderer.log").is_file())
+            self.assertIn("rendered", folder.joinpath("qa", "renderer.log").read_text())
+            self.assertEqual(run.call_args.kwargs["creationflags"],
+                             getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+    def test_gui_child_hides_console_without_hiding_window(self):
+        """结果查看器保持独立GUI进程，只抑制多余的命令窗口。"""
+        with patch("gridmind_app.main.subprocess.Popen") as start:
+            launch_gui_child(["python", "viewer.py"])
+            self.assertEqual(start.call_args.kwargs["creationflags"],
+                             getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
 if __name__ == "__main__":

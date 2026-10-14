@@ -6,6 +6,10 @@
 
 **0.2.8 分区输入 / Zonal input:** EXE可读取四张CSV做8760小时分区流量和电力部门碳、SO₂、新能源物理属性追踪，输出综合工作簿并按区缩放查看。This is a separate operational analysis mode; network-constrained GA/DP remains future work.
 
+**0.2.9 后台窗口 / Background windows:** 逐图调用Origin时不再弹出PowerShell命令窗口，错误输出继续保存在每张图的`qa/renderer.log`；交互查看器仍按需打开。Origin rendering runs without repeated command windows while the requested chart windows remain available.
+
+**0.2.10 框选统计 / Drag-to-inspect:** 在8760小时查看器内按左键框选时段，浮窗直接汇总各类发电、弃电、储能充放、负荷及外送，显示MWh、平均MW与平衡残差。The popover integrates archived hourly power at 1 h resolution; it does not rerun the solver.
+
 GRIDMIND is a modular research prototype for generation planning and chronological power system operation. GRIDMIND 是模块化的电源规划与全年逐时运行研究原型。桌面入口位于 `gridmind_app/`，算法位于 `power_ga/`，两者通过 `project_main.execute()` 连接。
 
 **0.2.3 修正 / Correction:** 0.2.1 的“年度源库”模式误用终期既有装机；0.2.2 虽修正容量，却遗漏仅中间年度出现的非终期计划项目。使用过这两个版本的年度源库结果请用 0.2.3 或更新版本重算。The source-input mode in 0.2.1 reused terminal existing capacity, while 0.2.2 omitted source-year-only planned projects. Rerun those results with 0.2.3 or newer. The controlled synthetic scaled case is unaffected by these annual alignment issues.
@@ -24,6 +28,14 @@ GRIDMIND is a modular research prototype for generation planning and chronologic
 - Storage charge, discharge and internal energy carry continuously across day and month boundaries. / 储能功率与内部库存跨日、跨月连续。
 - One workbook for annual, monthly, daily, hourly, project, storage, GA and data-quality tables. Static figures are kept in separate figure folders; the desktop viewer supports day, week, month, year and arbitrary hour ranges. / 一份汇总工作簿，图表分开存档，交互窗口支持日周月年和任意小时区间。
 - A separate four-CSV zonal mode solves 8,760 hourly power balances and traces physical carbon, SO₂ and renewable attributes to served demand. / 独立分区入口读取四张CSV、输出潮流与碳硫属性综合表，支持逐区缩放。
+- Left-button drag selection in the viewer opens an hour-accurate, nonmodal summary of generation, curtailment, storage charge/discharge, imports/exports, load and balance residual. / 查看器可框选整小时并弹出分类电量与平均功率统计。
+
+## Practical advantages / 当前优势
+
+- The same archived hourly CSV drives the workbook, interactive viewer, selected-period summary and repeat plotting, making displayed values independently checkable. / 表格、图形和框选统计共用一份逐时存档，便于复核。
+- Native Origin figures are editable where Origin is installed; the selectable Python backend exports PNG/PDF without Origin. / 同一绘图口径支持可编辑Origin工程与无需Origin的Python后端。
+- Input hashes, stage tables and numerical residuals are saved with each run; synthetic tests cover hourly power, storage and regional attribute balances. / 输入指纹、阶段表和物理残差留档，合成算例可复算。
+- The desktop EXE can run locally; public examples use fixed synthetic inputs, and the repository excludes private project databases and derived project output. / Windows本地运行，公开仓库仅含纯合成资料。
 
 The planning model is a transparent single-region research baseline; the separate zonal mode uses a lossless linear active-power approximation. Neither provides full AC power flow, probabilistic reliability, hydraulic cascade scheduling or a globally optimal annual unit-commitment problem. 当前主规划仍为单区域，分区模式也只计算无损线性有功近似，尚未提供完整交流潮流、概率可靠性、梯级水电或全年全局最优机组组合。
 
@@ -68,7 +80,7 @@ python gridmind_app/main.py --export-monthly-views synthetic_ga synthetic_months
 python -m unittest discover -s tests -q
 ```
 
-On Windows, `gridmind_app/build.ps1` uses PyInstaller to create `GRIDMIND.exe` and a versioned copy with the original icon and bundled renderer. The versioned copy remains usable if an older root EXE is open. Static native Origin figures require a separately installed Origin; turn off the figure option in the desktop app when unavailable. The EXE accepts `--viewer <result-folder>` to open the zoom window, `--export-demo-views` for five scales, and `--export-monthly-views` for twelve event-marked months. A valid local Gurobi installation/license is required for DP; it is not included in this repository. Windows 下可用打包脚本生成带原创图标的 EXE；动态规划依赖本机有效 Gurobi 许可。
+On Windows, `gridmind_app/build.ps1` uses PyInstaller to create one current `GRIDMIND.exe` with the original icon and bundled renderer. If that file is open, the new binary stays in `gridmind_app/dist/` until the old window closes; `-CreateDesktopShortcut` points a desktop shortcut to the runnable build. Static native Origin figures require a separately installed Origin; the Python backend remains available without it. The EXE accepts `--viewer <result-folder>` to open the zoom window, `--export-demo-views` for five scales, and `--export-monthly-views` for twelve event-marked months. A valid local Gurobi installation/license is required for DP; it is not included in this repository. Windows 下可生成带原创图标的单一当前EXE，动态规划依赖本机有效Gurobi许可。
 
 ## Complete results / 完整结果
 

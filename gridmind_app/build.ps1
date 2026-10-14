@@ -1,5 +1,5 @@
 ﻿# GRIDMIND应用打包入口；本文件只处理窗口与依赖，不修改算法模块。
-param([string]$PythonPath = 'python', [string]$Version = '0.2.8')
+param([string]$PythonPath = 'python', [switch]$CreateDesktopShortcut)
 $ErrorActionPreference = 'Stop'
 $app = Split-Path -Parent $MyInvocation.MyCommand.Path
 $project = Split-Path -Parent $app
@@ -34,17 +34,31 @@ foreach($path in @($entry, $icon, $costs, $syntheticCosts, $renderer)) {
     --workpath (Join-Path $app 'build_cache') `
     --specpath $app $entry
 if($LASTEXITCODE -ne 0) { throw 'PyInstaller打包失败' }
-# 根目录放用户可直接双击的正式EXE；打包缓存仍隔离在应用开发文件夹。
+# 根目录只交付一个正式EXE；打包缓存仍隔离在应用开发文件夹。
 $built = Join-Path $app 'dist\GRIDMIND.exe'
 $delivery = Join-Path $project 'GRIDMIND.exe'
-# 每次保留版本化应用；旧版正在打开时仍能直接双击新版。
-$versioned = Join-Path $project "GRIDMIND_$Version.exe"
-Copy-Item -LiteralPath $built -Destination $versioned -Force
+$shortcutTarget = $delivery
 try {
     Copy-Item -LiteralPath $built -Destination $delivery -Force
     Write-Output $delivery
 } catch [System.IO.IOException] {
-    # 用户若正在使用旧EXE，保留其窗口；完整新版已在独立dist目录等待替换。
-    Write-Warning "根目录EXE仍在运行，保留旧文件；新版位于 $versioned"
-    Write-Output $versioned
+    # 已打开的旧版不得强制终止；此时新版留在应用子目录，避免根目录出现双版本。
+    $shortcutTarget = $built
+    Write-Warning "根目录EXE仍被占用；新版位于 $built，旧窗口关闭后可重新构建替换"
+    Write-Output $built
+}
+if($CreateDesktopShortcut) {
+    # 使用系统桌面路径，快捷方式始终指向本次可运行的新版并继承其原创图标。
+    $desktop = [Environment]::GetFolderPath('Desktop')
+    $linkPath = Join-Path $desktop 'GRIDMIND.lnk'
+    $shell = New-Object -ComObject WScript.Shell
+    $link = $shell.CreateShortcut($linkPath)
+    $link.TargetPath = $shortcutTarget
+    $link.WorkingDirectory = Split-Path -Parent $shortcutTarget
+    $link.IconLocation = "$shortcutTarget,0"
+    $link.Description = 'GRIDMIND 电源规划与8760小时运行模拟'
+    $link.Save()
+    [System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($link) | Out-Null
+    [System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) | Out-Null
+    Write-Output $linkPath
 }

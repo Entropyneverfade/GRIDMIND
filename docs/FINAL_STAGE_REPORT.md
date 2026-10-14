@@ -140,6 +140,12 @@ $$\sum_i e_i^k\Delta t=\sum_iq_i^k(D_i^{\rm served}+p_i^{\rm ch}+o_i)\Delta t.$$
 
 ### 3.7 从输入到审计文件的复现步骤
 
+交互查看器允许在日、周、月、年或自定义视图内用鼠标框选整数小时 $[a,b)$。浮窗对每类已归档功率 $P_{k,t}$ 使用相同的1小时步长计算电量与平均功率：
+
+$$E_k[a,b)=\sum_{t=a}^{b-1}P_{k,t}\times1\mathrm{h},\qquad \bar P_k[a,b)=\frac{E_k[a,b)}{b-a}. $$
+
+发电、进口、储能放电和缺供与总需求、储能充电、未消纳过剩组成选段平衡；弃风弃光是未发出的可用量，仅独立列示，不重复加到供给侧。外送已计入总需求，同时单列以便查看。本功能只读取逐时结果存档，不改变规划或运行解。The popover reports archived period energy and average power with no additional dispatch.
+
 在仓库根目录按 [`requirements.txt`](../requirements.txt) 安装基础依赖；DP 与含交流边的分区 LP 还需安装 [`requirements-gurobi.txt`](../requirements-gurobi.txt) 并具备有效本机 Gurobi 许可。公开三年合成规划的完整复现命令为：
 
 ```powershell

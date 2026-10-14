@@ -13,6 +13,8 @@ Windows 用户双击 `GRIDMIND.exe`；若旧版根目录程序仍在运行，可
 
 勾选“生成图件”并在旁边选择绘图后端：Origin 产生原生可编辑工程，Python 较快且不依赖 Origin。交互窗口始终由 Python 读取已归档逐时 CSV；批处理可用 `--batch-figure-backend python`，已有项目结果可用 `--render-project-python 结果目录` 在独立 `figures_python` 文件夹补图。Archived results can be redrawn without recomputing 8,760 hours.
 
+0.2.9起，Origin逐图绘制在后台运行，不应反复显示PowerShell命令窗口；如绘图失败，可查看该图目录的`qa/renderer.log`。用户主动点击“查看8760小时运行图”或“查看规划图”时仍会打开相应图形窗口。Origin command shells are hidden, while requested chart windows remain visible.
+
 动态规划当前最多允许8个候选位，目标年须至少比基年晚2年，贴现率默认7%。每阶段费用使用已投运候选年化费、当年外生计划年化费和全年运行费。超出上限时给出错误，不截断候选集。全规划年会执行“阶段数×2^候选位数”次全年评价，请为计算留出时间。The cap prevents accidental exponential runs and never silently drops projects.
 
 0.2.6起，状态栏在每个规划年内按批次报告“本年已完成/本年总状态、总体已完成/总体总状态（百分比）”。每年最多约16次通知；百分比只表示已完成的8760小时状态评价数量，不是剩余时间预测。Since v0.2.6 the desktop status shows bounded state-evaluation progress across the full horizon; it is a count, not an ETA.
@@ -35,6 +37,8 @@ Gurobi 在 DP 模式中优化**年度状态路径**并与 Bellman 递推交叉�
 ## 查看与保存 / View and archive
 
 完成后“查看8760小时运行图”弹出单张堆叠图：供给与弃电在正向，抽蓄及电池充电在负向，洋红色线为需求；正常风光为纯色，弃光为黄色密正斜线、弃风为绿色密反斜线。日/周短窗口中少量薄弃电时，图上最多标记两次主要弃电小时及两类实际 MW，标记不放大电量面积。可按日、周、月、年、任意左闭右开小时区间缩放和前后翻页，并将当前图保存为 PNG。项目单区运行中，小容量储能机组按额定放电功率 MW 优先参与削峰；同容量按电站 ID，充电顺序不变。分区 CSV 模式的储能时序仍由输入文件固定给定。The viewer reloads a saved result without recalculation.
+
+在图内按住鼠标左键水平拖拽，松开后弹出可独立关闭的时段统计窗；时间按全年小时序号显示，左闭右开边界对应被框触及的整小时。各类发电、弃风弃光、抽蓄/电池充放、区外来电、外送、本地负荷、总需求及缺供按原始逐时CSV求和，列出时段电量MWh和平均功率MW，并显示平衡残差。选完可继续切日/周/月/年；切图会关闭旧统计窗。工具栏处于平移或缩放模式时先退出该模式再框选。The popover sums stored hourly MW values; curtailment is reported separately from actual generation.
 
 “查看规划图”在 GA 存档中显示费用收敛与种群状态；在 DP 存档中显示年度费用、累计投运状态，以及同口径 GA 可行最优费用相对 DP/Gurobi 下界的收敛曲线。“打开结果存档”展示表格与独立图片文件夹；“载入已有存档”复用先前结果。The planning chart automatically follows the saved algorithm type and displays the paired comparison when available.
 
