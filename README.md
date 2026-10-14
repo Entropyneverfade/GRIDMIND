@@ -1,5 +1,9 @@
 # GRIDMIND
 
+**请先阅读[五章完整研究报告 / Complete five-chapter report](docs/FINAL_STAGE_REPORT.md)：** 概述、GA与DP、运行规则、纯合成算例参数、结果及全部19张内嵌图片均在同一页面；公式使用GitHub可渲染的数学格式。新版分区传输与碳/SO₂/新能源属性为独立验证模块，尚未接入真实项目规划入口。The single report contains all current synthetic figures and equations.
+
+**0.2.7 弃电规则 / Curtailment:** 项目运行改为按当时风光可用出力份额分摊弃电，重跑三年度合成算例后同时出现弃风和弃光。An explicitly parameterized network prototype and a physical attribute tracing layer are included as separate modules.
+
 GRIDMIND is a modular research prototype for generation planning and chronological power system operation. GRIDMIND 是模块化的电源规划与全年逐时运行研究原型。桌面入口位于 `gridmind_app/`，算法位于 `power_ga/`，两者通过 `project_main.execute()` 连接。
 
 **0.2.3 修正 / Correction:** 0.2.1 的“年度源库”模式误用终期既有装机；0.2.2 虽修正容量，却遗漏仅中间年度出现的非终期计划项目。使用过这两个版本的年度源库结果请用 0.2.3 或更新版本重算。The source-input mode in 0.2.1 reused terminal existing capacity, while 0.2.2 omitted source-year-only planned projects. Rerun those results with 0.2.3 or newer. The controlled synthetic scaled case is unaffected by these annual alignment issues.

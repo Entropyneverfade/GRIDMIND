@@ -1,31 +1,152 @@
-# GRIDMIND 阶段成果总览 / GRIDMIND stage delivery
+# GRIDMIND 研究报告 / Research report
 
-本报告汇总截至 0.2.6 的**已验收能力**。公开的算例数值、曲线、图片和工作簿均来自仓库内固定种子合成案例；测试数量与发布状态则来自本地验收记录。本地项目输入、项目派生结果、逐时表、图片、路径及输入指纹没有进入公开仓库。This report covers verified v0.2.6 capabilities. Published case artifacts are synthetic; project-derived material stays local.
+本报告数值、图像及工作簿仅来自固定种子的**公开合成案例**。项目库与其派生结果只留在使用者本机。图像均直接嵌入此报告，并附同一文件的原图链接。All published case artifacts are synthetic.
 
-## 1. 程序与架构 / Application and architecture
+## 第一章：概述 / 1. Overview
 
-Windows 单文件应用有原创图标，前端 `gridmind_app/` 与算法 `power_ga/` 分开维护。数据采集、Gen=0、全年运行、适应度与收敛、遗传迭代、动态规划、输出各有模块目录；关键函数旁保留中文作用、单位与公式注释。应用支持单年 GA、双年度 DP、完整年度序列 DP、仅运行存量系统，并能重开历史结果。The desktop app and algorithm modules share one calculation entry point and archive runs for reuse.
+GRIDMIND 将数据采集、Gen=0、全年运行、适应度与收敛、遗传迭代、动态规划及结果输出按模块保存。桌面应用支持单年GA、双年度或连续年度DP、仅运行存量系统、结果归档重开，以及日、周、月、年或任意小时区间的8760小时查看。表格和图片分目录存放；算法代码的关键函数、操作和必要公式有就近中文注释。The desktop viewer and algorithms share the same archived hourly results.
 
-运行图以一张堆叠图呈现八类电源、储能充放电、弃风弃光与醒目的负荷线；窗口可按日、周、月、年和任意小时区间缩放。表格与图片分目录存档；[五种合成缩放视图](PREVIEWS.md)及[12 张末年月图](FULL_HORIZON_GALLERY.md)可直接预览。The viewer uses one stack chart, while numerical tables and figure files remain separate.
+主规划流程目前仍为**单区域逐时平衡**。另有独立的分区跨区传输试验模块：可控通道支持确定性启发式路径搜索，交流等值边支持相角约束的线性有功潮流；电力部门投入产出式碳、SO₂和新能源属性追踪使用其逐时流量。分区模块尚未接入真实项目GA/DP适应度或应用输入界面。The new zonal functions are verified APIs, not a completed network-constrained planning workflow.
 
-## 2. 运行与规划方法 / Operation and planning methods
+## 第二章：GA算法和动态规划算法 / 2. GA and DP
 
-全年运行按 365×24 小时单区域功率平衡计算，覆盖煤电、燃气、常规水电、抽水蓄能、电池、风电、光伏和生物质。抽蓄与电池的内部能量跨日、跨月递推；常规水电使用月可用电量上界。单年 GA 包含编码、初代、选择、交叉、变异、精英保留和停滞判断。多年度 DP 以累计投运项目集合为状态，Bellman 递推求阶段路径，Gurobi 对相同已评价状态费用作独立 0/1 路径核验；同口径 GA 查询同一费用表。The Gurobi state model verifies construction timing over precomputed hourly state costs.
+对候选项目 $j$ 和规划年 $t$，累计投运状态 $x_{j,t}\in\{0,1\}$，新增状态 $d_{j,t}=x_{j,t}-x_{j,t-1}\ge0$。状态年费用与多年度贴现目标为
 
-0.2.5 修正小种群 Gen=0 按末年整块排序的偏置，改用可复现的年度交织种子；0.2.6 在每个年度内部按批次显示状态计算进度。新进度只按已完成状态数计数，不预测剩余时间，也不改变目标函数。公式、费用口径与约束见[数学推导](MATHEMATICS_APPENDIX.md)。The seed policy is versioned in result archives; progress reporting leaves dispatch and optimization equations unchanged.
+$$C_t(x_t)=\sum_j x_{j,t}K_{j,t}^{\mathrm{ann}}+\sum_{h=1}^{8760}\sum_g c_gP_{g,t,h}\Delta t,\qquad \min\sum_{t=1}^{T}\frac{C_t(x_t)}{(1+r)^{t-1}},\quad\Delta t=1\mathrm{h}.$$
 
-## 3. 完整公开合成案例 / Complete public synthetic case
+运行缺供、备用不足和装机备用违反硬约束的状态不进入可行集合。GA 使用按年份交织的单项目Gen=0种子，随后进行选择、交叉、位变异、精英保留和停滞判断；逐代记录历代最优、本代最优、可行个体数与唯一染色体数。DP 以累计项目集 $S_t$ 为状态，要求 $S_{t-1}\subseteq S_t$：
 
-三年度八类电源案例有三个合成年份、八个候选项目，共 \(3\times2^8=768\) 个年度状态；每个状态评价 8760 小时。Bellman、Gurobi 与固定种子同表 GA 均选择累计状态 `(0,2,2)`，折现目标约 **369,286,121.94 元**。独立回放所选年度的逐时功率、储能与月水电约束；最大功率残差 **2.84×10⁻¹⁴ MW**，最大储能状态残差 **3.55×10⁻¹⁵ MWh**，月水电预算超额 **0 MWh**。末年八类电源均有正的实际出力或放电量。[完整案例与合并工作簿](CASE_STUDY.md)分别说明 GA、DP 与比较口径。These numbers describe a seeded teaching case, not a regional planning recommendation.
+$$V_t(S_t)=\frac{C_t(S_t)}{(1+r)^{t-1}}+\min_{S_{t-1}\subseteq S_t}V_{t-1}(S_{t-1}),\qquad V_0(\varnothing)=0.$$
 
-同一 768 行状态费用表上，旧/新初代策略在四组“种群/最多代数”预算、各 20 种子中的最优命中分别为 `1→8`、`1→8`、`20→10`、`20→20`。种群和代数同时变化，且旧版种群 12 曾在初代直接含有本例最优路径，因此这些频数不能外推为一般成功率或速度结论。[逐种子表及推导](CASE_STUDY.md#有限搜索预算与随机种子--limited-budget-seed-sensitivity)保留正反两面的观察。The comparison isolates a seed-order policy change on one fixed synthetic state table.
+Gurobi 对同一已评价的年度状态费用表做0/1路径核验；GA也读取该表，因此两算法使用完全相同的运行输入和费用。Gurobi路径模型不代替8760小时运行模拟；有限预算GA不能普遍保证全局最优。The methods differ in their search over the same stage-cost table.
 
-## 4. 验收与交付 / Verification and delivery
+## 第三章：运行模拟规则 / 3. Operation and attribute tracing
 
-0.2.6 的本地 **45 项**（含发布门测试）、独立公开仓库 **40 项**测试通过。三年度合成案例在 0.2.6 下重跑，完整状态表、GA 历史、终期逐时与逐站储能 CSV 均与 0.2.5 **逐字节相同**，并再次通过物理独立验收。0.2.6 版本化 EXE 的后台启动、Gurobi 可用性、五种缩放图导出通过。**本地完整逐年源库的源码与 EXE 精确对照使用 0.2.5 版**：路径、费用及逐时输出一致，终期和所有较早阶段均通过独立物理与费用核验；0.2.6 仅修改进度通知，未重新执行该私有全量对照。这些项目验收细节只存本机。The private source-versus-EXE audit belongs to v0.2.5; v0.2.6 has full synthetic numerical parity and packaged smoke checks.
+主模型对煤、气、常规水电、生物质、风、光、抽水蓄能及电池按小时运行。风光可用出力 $A_{r,h}=\sum_jP_jcf_{j,h}$，实际发电 $G_{r,h}=A_{r,h}-Q_{r,h}$。常规水电用月预算上限，不声称有库容、水头或梯级传递；储能内能跨日、跨月递推：
 
-公开发布从独立目录按精确文件清单导出，先扫描候选源文件，再复制并复扫文本、XLSX 内部 XML 和图片元数据；MIT、文件 SHA-256 清单、相对链接、提交变更清单与远端提交均核对。0.2.6 [源代码提交](https://github.com/Entropyneverfade/GRIDMIND/commit/4f58b121715174901328af5bc926bcbf0b8b11d4)、[使用说明](USER_GUIDE.md)、[持续进度](PROGRESS_2026-10-14.md)和[开发计划](ROADMAP.md)可直接查看。The Windows EXE is delivered locally; the public repository contains source, architecture, synthetic exhibits and derivations.
+$$E_{h+1}=E_h+\eta_{\mathrm{ch}}P_{\mathrm{ch},h}\Delta t-\frac{P_{\mathrm{dis},h}\Delta t}{\eta_{\mathrm{dis}}},\qquad 0\le E_h\le E_{\max}.$$
 
-## 5. 适用边界与后续 / Limits and next steps
+在缺乏线路、报价与限电优先级资料的单区主流程里，充电后必须削减的风光总量 $Q_h$ 按可用份额分摊：
 
-当前是确定性单区域研究原型。尚未实现线路潮流与 N−1、概率 EENS/LOLE、完整水库级联、机组最小开停机与全年全局最优机组组合；真实成本仍需项目报价校准，不能以试算参数作投资结论。下一阶段优先按[开发计划](ROADMAP.md)加入建设工期与退役状态、网络约束、多天气年/故障情景及更完整的水电和机组运行约束；每项仍需先有合成已知答案和守恒残差验收。The current outputs support transparent method testing and do not establish network security or probabilistic adequacy.
+$$Q_{w,h}=Q_h\frac{A_{w,h}}{A_{w,h}+A_{s,h}},\qquad Q_{s,h}=Q_h-Q_{w,h},\qquad 0\le Q_h\le A_{w,h}+A_{s,h}.$$
+
+若风光可用量均为0，两类弃电均为0。该规则使风与光都可能被弃，消除固定先弃光的结构偏置；它只是资料不足时的透明试算，**不是最优调度或实际电网的限电指令**。[Applied Energy 2024 电力碳核算综述](https://www.sciencedirect.com/science/article/pii/S0306261924000643)及[Applied Energy 2025 储能与投入产出耦合](https://www.sciencedirect.com/science/article/pii/S0306261924023183)支持对时间分辨率、储能及系统边界作明确区分，不能推出普适的弃风弃光先后顺序。The curtailment split is an explicit model assumption.
+
+分区 $i$ 的每小时有功平衡为
+
+$$\sum_{g\in i}P_{g,h}+W_{i,h}+S_{i,h}+P^{\mathrm{dis}}_{i,h}+U_{i,h}+\sum_jF_{ji,h}=D_{i,h}+P^{\mathrm{ch}}_{i,h}+O_{i,h}+\sum_jF_{ij,h}.$$
+
+联络线满足 $|F_{ij,h}|\le\bar F_{ij}$；交流边采用 $F_{ij,h}=b_{ij}(\theta_{i,h}-\theta_{j,h})$ 的线性相角近似，可控直流边独立优化。启发式模式只对可控通道按“风光及最低出力送电→成本序位增发→缺供或弃电”搜寻剩余容量路径；交流环网不能直接使用自由路径结果。两种模式均无网损、无电压无功、无N−1，不等于完整交流最优潮流。Both modes audit each zonal power balance.
+
+对属性 $k\in\{\mathrm{CO_2},\mathrm{SO_2},\mathrm{RE}\}$，电力部门多区域投入产出式比例分摊求解
+
+$$P_i^{\mathrm{out}}q_i^k-\sum_jF_{ji}q_j^k=e_i^k,\qquad \mathbf M\mathbf q^k=\mathbf e^k,\qquad E_{i,\mathrm{load}}^k=D_i^{\mathrm{served}}q_i^k.$$
+
+$e_i^k$ 是本地已发电机组和已知充电来源的储能放电直接属性；碳用tCO₂、硫按SO₂用kg，新能源属性是物理电量份额。储能放电属性未知会拒绝计算，绝不自动记为零碳或绿电。本模块不包括绿证所有权、经济部门上游供应链和SO₂大气扩散，故属于**电力部门投入产出式追踪**，不冒称完整社会经济MRIO。[Energy Policy 2026 跨省电力投入产出研究](https://www.sciencedirect.com/science/article/pii/S0301421525004148)与[Applied Energy 2019 SO₂多区域研究](https://www.sciencedirect.com/science/article/abs/pii/S0306261919301370)为属性模型的研究依据。It allocates physical electricity attributes, not market certificates.
+
+## 第四章：算例设计和参数介绍 / 4. Case design and parameters
+
+公开规划案例有2026—2028三个合成年份、8个候选项目、每年8760小时，共 $3\times2^8=768$ 个年度状态。八类机组均参与；年度负荷系数依次0.82、1.00、1.08，折现率7%。各年复用同一合成气象种子，避免将天气重抽样混入GA与DP比较。成本CSV为**可编辑试算假设**，不代表真实项目报价。The complete synthetic inputs are generated by the included fixed-seed scripts.
+
+| 候选技术 / Candidate | 新增MW | 假设年化资本费 元/MW·年 | 变动费 元/MWh |
+|---|---:|---:|---:|
+| 煤电 / Coal | 20 | 2,800,000 | 240 |
+| 燃气 / Gas | 15 | 1,000,000 | 470 |
+| 常规水电 / Hydro | 10 | 5,900,000 | 30 |
+| 生物质 / Biomass | 8 | 4,000,000 | 180 |
+| 抽蓄 / Pumped storage | 10 | 1,700,000 | 8 |
+| 电池 / Battery | 10 | 1,400,000 | 8 |
+| 风电 / Wind | 20 | 1,300,000 | 0 |
+| 光伏 / Solar | 20 | 850,000 | 0 |
+
+另有独立四区8760小时**纯合成**网络试验，区域名为山西、华北、华中、江苏。[国家能源局2024答复](https://zfxxgk.nea.gov.cn/2024-06/11/c_1212388601.htm)说明山西500 kV网架“三纵四横”及向京津冀鲁、华中、江苏的交流、直流和500 kV外送联系；[江苏监管办公室记录](https://jsb.nea.gov.cn/dtyw/jgdt/202309/t20230910_28887.html)证实晋北—南京直流工程。因此只将**连接方向**作为公开依据。示意限额22、16、12 MW、交流电纳120、100 MW/rad，以及负荷、机组、风光全部为脚本生成的任意教学参数，**不是实际线路、实测潮流或全国库参数**。The four-zone fixture tests methods without reconstructing any real grid.
+
+## 第五章：结果分析 / 5. Results and prior comparison
+
+更新后的公开三年度算例里，Bellman、Gurobi及固定种子GA均选择累计状态 $(0,2,2)$，折现总费用约 **369.286 百万元**。768个状态各评价8760小时；对选中方案再独立回放，最大功率平衡残差 $2.84\times10^{-14}$ MW、储能状态残差 $3.55\times10^{-15}$ MWh，月水电预算超额0 MWh。本次同解不代表有限预算GA普遍可找到全局最优。The final year has positive output or discharge from all eight technology groups.
+
+末年本地负荷829,822.658 MWh、缺供0；风电实际112,305.782 MWh、弃风2,040.106 MWh；光伏实际123,961.086 MWh、弃光6,947.400 MWh。新规则重算后**弃风与弃光同时出现**。公开合成结果的工作簿、阶段对照和独立验收文件见[结果目录](../examples/results/v0.2.7/)。The updated curtailment values and figures come from one hourly archive.
+
+下方GA与DP图由Origin原生工程从新版结果CSV绘制；GA曲线平直是因为本次Gen=0已含最终最优路径，图不虚构继续改进。运行图由应用的交互绘图后端导出，正常风光纯色、弃风弃光同色斜线、储能充电在零线以下，负荷线加粗。Every image below is embedded directly in this report.
+
+GA逐代费用 / View：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/ga_history.png)
+
+![公开合成GA逐代费用](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/ga_history.png)
+
+DP阶段费用 / View：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/dp_stage_cost.png)
+
+![公开合成DP阶段费用](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/dp_stage_cost.png)
+
+第182日 / View：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/day_182.png)
+
+![公开合成第182日](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/day_182.png)
+
+第27周 / View：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/week_27.png)
+
+![公开合成第27周](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/week_27.png)
+
+第7月缩放 / Monthly view：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_7.png)
+
+![公开合成第7月缩放](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_7.png)
+
+全年8760小时 / View：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/year_1.png)
+
+![公开合成全年8760小时](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/year_1.png)
+
+任意时段137—193小时 / View：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/custom_137_193.png)
+
+![公开合成任意时段137—193小时](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/custom_137_193.png)
+
+1月 / Monthly view：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_01.png)
+
+![公开合成1月](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_01.png)
+
+2月 / Monthly view：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_02.png)
+
+![公开合成2月](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_02.png)
+
+3月 / Monthly view：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_03.png)
+
+![公开合成3月](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_03.png)
+
+4月 / Monthly view：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_04.png)
+
+![公开合成4月](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_04.png)
+
+5月 / Monthly view：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_05.png)
+
+![公开合成5月](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_05.png)
+
+6月 / Monthly view：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_06.png)
+
+![公开合成6月](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_06.png)
+
+7月 / Monthly view：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_07.png)
+
+![公开合成7月](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_07.png)
+
+8月 / Monthly view：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_08.png)
+
+![公开合成8月](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_08.png)
+
+9月 / Monthly view：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_09.png)
+
+![公开合成9月](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_09.png)
+
+10月 / Monthly view：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_10.png)
+
+![公开合成10月](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_10.png)
+
+11月 / Monthly view：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_11.png)
+
+![公开合成11月](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_11.png)
+
+12月 / Monthly view：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_12.png)
+
+![公开合成12月](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.7/month_12.png)
+
+独立四区合成网络试验得到弃风245.986 MWh、弃光315.664 MWh、缺供0、最大分区功率残差 $2.84\times10^{-14}$ MW。两区碳、SO₂及新能源属性的已知答案测试通过：10 MW煤电与10 MW风电混合后，本区与外区每MWh均继承一半风电属性；储能放电无属性输入则报错。These are synthetic verification results, not regional forecasts.
+
+**与先验结果比较。** 本机对照表逐项检查负荷、外送、机组发电、储能及弃电。先验场景与项目库原始负荷不同，因此先做固定GA建设方案、只替换先验8760小时本地负荷及外送的控制实验；该方案出现缺供。随后将目标年全部候选装机投运，在相同逐时需求下，全年风光可用总电量与先验表吻合，但发电、弃电、水电及储能仍有差异。差异可与运行规则有关，仍需核对逐日/逐站风光曲线、水文、机组组合和储能初态后才可定量归因。本报告不公布真实项目数值、图片或可还原元数据。The comparison aligns demand and annual renewable availability, while the remaining technical assumptions still require audit.
+
+复现公开案例：`python -m examples.synthetic_dynamic_case --output synthetic_full --full-horizon`，然后 `python -m examples.verify_dynamic_case --output synthetic_full`；分区试验：`python -m examples.synthetic_network_case --output synthetic_network`。使用说明见[USER_GUIDE](USER_GUIDE.md)。尚未实现真实分区参数接入GA/DP、跨时段储能属性库存、概率EENS/LOLE、N−1、完整水电级联和机组启停。The verified boundaries are part of the result.

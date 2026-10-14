@@ -1,5 +1,11 @@
 # Development progress / 开发进度
 
+## 2026-10-14 — Stage 0.2.7 / 风光弃电、分区试验与统一报告
+
+- 项目运行的富余风光按可用份额分摊弃电，三年度纯合成案例重跑、独立物理回算后同时出现弃风和弃光；12张月图、五种缩放图及Origin GA/DP图重新生成。The synthetic GA/DP case and figures were regenerated after the curtailment rule change.
+- 新增独立分区小时LP、仅适用可控通道的启发式路径调度、8760小时合成网络试验及碳/SO₂/新能源属性追踪。公开资料仅确定示意连接方向，容量、电纳和需求均为合成假设；这些API尚未接入应用规划入口。Zonal transfer and physical attribute tracing are verified modules, not a production network model.
+- 研究报告合并成五章，GitHub数学公式改为`$...$`/`$$...$$`，19张新版图直接嵌入。Real project inputs and derived outputs remain local.
+
 ## 2026-10-14 — Stage 0.2.6 / 动态规划过程可见性
 
 - 每年度最多约16次状态评价进度通知，显示本年与总体已完成状态数及百分比；后台计算仍通过线程安全队列传回窗口。The long multi-year run now reports bounded, monotone progress within each annual state sweep.

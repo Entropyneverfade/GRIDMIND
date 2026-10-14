@@ -1,0 +1,33 @@
+{
+  "synthetic": true,
+  "hours": 8760,
+  "max_balance_residual_mw": 2.842170943040401e-14,
+  "unserved_mwh": 0.0,
+  "wind_curtailment_mwh": 245.98598676650792,
+  "solar_curtailment_mwh": 315.66353373945327,
+  "links": [
+    {
+      "name": "晋华北_示意交流",
+      "kind": "ac",
+      "assumed_limit_mw": 22.0,
+      "assumed_susceptance_mw_per_rad": 120.0
+    },
+    {
+      "name": "晋华中_示意交流",
+      "kind": "ac",
+      "assumed_limit_mw": 16.0,
+      "assumed_susceptance_mw_per_rad": 100.0
+    },
+    {
+      "name": "晋苏_示意直流",
+      "kind": "dc",
+      "assumed_limit_mw": 12.0,
+      "assumed_susceptance_mw_per_rad": null
+    }
+  ],
+  "public_connectivity_sources": [
+    "https://zfxxgk.nea.gov.cn/2024-06/11/c_1212388601.htm",
+    "https://jsb.nea.gov.cn/dtyw/jgdt/202309/t20230910_28887.html"
+  ],
+  "warning": "只有连接方向来自公开资料；所有数值与区域聚合均为合成假设，不能代表真实线路潮流"
+}

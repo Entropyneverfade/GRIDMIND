@@ -371,3 +371,32 @@ def plot_dynamic_stage_costs(years, annual_yuan, discounted_yuan, root: Path,
                      "discounted": discounted}, plots, spec,
             zip(years, annual_yuan, discounted_yuan),
             ["规划年", "阶段年度费用元", "阶段折现费用元"])
+
+
+def plot_stage_ga_history(history_rows, root: Path):
+    """用年度状态GA的真实逐代记录绘图，不把本代最优误称为种群均值。"""
+    rows = tuple(history_rows)
+    if not rows:
+        raise ValueError("缺少GA逐代记录")
+    generation = [int(row[0]) for row in rows]
+    best = [float(row[1]) / 1e6 for row in rows]
+    current = [float(row[2]) / 1e6 for row in rows]
+    low = math.floor(min(best + current) / 20) * 20 - 20
+    high = math.ceil(max(best + current) / 20) * 20 + 20
+    step = max(20, math.ceil((high - low) / 5 / 20) * 20)
+    spec = {"name": "stage_ga_history", "title": "遗传算法逐代费用",
+            "x_label": r"\f:SimSun(遗传代数)",
+            "y_label": r"\f:SimSun(折现费用) / \f:SimSun(百万元)",
+            "x_min": 0, "x_max": max(1, generation[-1]),
+            "y_min": low, "y_max": high,
+            "x_ticks": sorted({0, generation[-1], generation[-1] // 2}),
+            "y_ticks": sorted(set(range(low, high + 1, step)) | {low, high}),
+            "zero_once": False,
+            "caption": "公开合成案例；历代最优与本代最优均来自GA真实日志"}
+    _render(root / "02_GA逐代费用",
+            {"generation": generation, "best": best, "current": current},
+            [{"column": 2, "label": "历代最优", "color": "#1D3557",
+              "fill": False, "pattern": 0, "width": 2.2},
+             {"column": 3, "label": "本代最优", "color": "#D96C2B",
+              "fill": False, "pattern": 0, "width": 1.5}], spec, rows,
+            ["代数", "历代最优折现费用元", "本代最优折现费用元", "可行个体数", "不同染色体数"])

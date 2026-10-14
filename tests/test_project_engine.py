@@ -12,12 +12,24 @@ from power_ga.common.domain import GASettings, PLANNING_MONTH_HOURS
 from power_ga.data_collection.project_case import (TECH_LABELS, CasePlant, ProjectCase,
                                                     _make_plant, _read_curve, read_costs)
 from power_ga.genetic_iteration.project_solver import evaluate_project, optimize_project
+from power_ga.operation_simulation import project_engine
 from power_ga.operation_simulation.project_engine import _hydro_target, _monthly_index, simulate_project
 from power_ga.result_output.project_report import write_project_report
 
 
 class ProjectEngineTests(unittest.TestCase):
     """使用完全合成的输入，不依赖或复制任何项目数据库。"""
+
+    def test_wind_and_solar_share_surplus_curtailment(self):
+        """风光均可用时按可用MW分摊弃电，且 Q风+Q光=需弃总量。"""
+        wind, solar = project_engine._allocate_curtailment(80.0, 120.0, 50.0)
+        self.assertAlmostEqual(wind, 20.0)
+        self.assertAlmostEqual(solar, 30.0)
+        self.assertAlmostEqual(wind + solar, 50.0)
+        self.assertEqual(project_engine._allocate_curtailment(0.0, 120.0, 50.0),
+                         (0.0, 50.0))
+        self.assertEqual(project_engine._allocate_curtailment(80.0, 0.0, 50.0),
+                         (50.0, 0.0))
 
     def test_eight_technologies_and_8760_balance(self):
         """八类技术可同时进入引擎，逐小时功率与储能状态残差接近零。"""

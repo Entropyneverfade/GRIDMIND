@@ -74,6 +74,21 @@ class _Storage:
         return power
 
 
+def _allocate_curtailment(wind_available_mw: float, solar_available_mw: float,
+                          requested_mw: float) -> tuple[float, float]:
+    """单区聚合调峰按当时可用出力比例分摊弃风、弃光，返回二者MW。"""
+    # 先保证总弃电不超过两类资源的可用功率；Q=min(max(富余,0),Aw+As)。
+    available = wind_available_mw + solar_available_mw
+    total = min(max(0.0, requested_mw), available)
+    if available <= 0.0:
+        return 0.0, 0.0
+    # 无网架/报价/调度优先级资料时用中性的可用份额规则：Qw=Q·Aw/(Aw+As)。
+    # Qs=Q−Qw，故逐时弃电守恒且只要两类均可用、Q>0，两者均可能弃电。
+    wind = min(wind_available_mw, total * wind_available_mw / available)
+    solar = min(solar_available_mw, total - wind)
+    return wind, solar
+
+
 def _monthly_index():
     """按365日规划年给8760小时附所属月；闰年也不含2月29日。"""
     months = []
@@ -218,10 +233,9 @@ def simulate_project(case: ProjectCase, chromosome, keep_hourly=False,
             charge_by_kind[state.plant.technology] += power
             storage_charges[i] = power
         charge = sum(charge_by_kind.values())
-        # 当前实现采用“先弃光、后弃风”；弃电保留在独立列，不混作发电。
+        # 单区没有电网约束和报价时按可用份额分摊风光弃电；弃电独立列不混作发电。
         curtail = max(0.0, must_run + wind_avail[t] + solar_avail[t] - load[t] - charge)
-        solar_curt = min(solar_avail[t], curtail)
-        wind_curt = min(wind_avail[t], curtail - solar_curt)
+        wind_curt, solar_curt = _allocate_curtailment(wind_avail[t], solar_avail[t], curtail)
         wind = wind_avail[t] - wind_curt
         solar = solar_avail[t] - solar_curt
         residual = load[t] + charge - wind - solar
