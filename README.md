@@ -10,7 +10,7 @@
 
 **0.2.10 框选统计 / Drag-to-inspect:** 在8760小时查看器内按左键框选时段，浮窗直接汇总各类发电、弃电、储能充放、负荷及外送，显示MWh、平均MW与平衡残差。The popover integrates archived hourly power at 1 h resolution; it does not rerun the solver.
 
-**0.2.11 分区同窗切换 / Zonal viewer:** 分区CSV结果在一张查看器窗口内选择全网汇总或各分区，保留当前小时尺度与框选统计。全网图先验证进口等于出口，再抵消内部交换；各分区仍显示真实的本区进口和外送。The published [four full-year zonal views](docs/FINAL_STAGE_REPORT.md) use fixed synthetic data.
+**0.2.12 图窗分区切换 / Zonal viewer:** 每张运行图窗顶部都有“显示分区”；单区结果可直接点击“载入分区结果…”选取分区运行存档，随后在同一窗口切换全网汇总和各区，保留当前小时区间。全网图先验证进口等于出口，再抵消内部交换；各分区保留本区进口和外送。The [four full-year zonal views](docs/FINAL_STAGE_REPORT.md) use fixed synthetic data; a single-region archive alone cannot reconstruct other zones.
 
 GRIDMIND is a modular research prototype for generation planning and chronological power system operation. GRIDMIND 是模块化的电源规划与全年逐时运行研究原型。桌面入口位于 `gridmind_app/`，算法位于 `power_ga/`，两者通过 `project_main.execute()` 连接。
 
@@ -30,7 +30,7 @@ GRIDMIND is a modular research prototype for generation planning and chronologic
 - Storage charge, discharge and internal energy carry continuously across day and month boundaries. / 储能功率与内部库存跨日、跨月连续。
 - One workbook for annual, monthly, daily, hourly, project, storage, GA and data-quality tables. Static figures are kept in separate figure folders; the desktop viewer supports day, week, month, year and arbitrary hour ranges. / 一份汇总工作簿，图表分开存档，交互窗口支持日周月年和任意小时区间。
 - A separate four-CSV zonal mode solves 8,760 hourly power balances and traces physical carbon, SO₂ and renewable attributes to served demand. / 独立分区入口读取四张CSV、输出潮流与碳硫属性综合表，支持逐区缩放。
-- One zonal viewer switches among the full network and every region without reloading the CSV or resetting the current hour range. / 同一窗口切换全网与各分区8760小时图，保留当前时间范围。
+- Every operation viewer has a region selector and can open a zonal result archive in that same window; switching among its regions uses cached curves and retains the hour range. / 每张运行图窗均可在顶部载入分区存档、切换全网与各分区8760小时图，保留当前时间范围。
 - Left-button drag selection in the viewer opens an hour-accurate, nonmodal summary of generation, curtailment, storage charge/discharge, imports/exports, load and balance residual. / 查看器可框选整小时并弹出分类电量与平均功率统计。
 
 ## Practical advantages / 当前优势

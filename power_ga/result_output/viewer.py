@@ -1,7 +1,8 @@
 """全年运行结果交互查看窗口：在同一堆叠图浏览出力与储能充放。
 
 启动：python -m power_ga.result_output.viewer --result output
-数据直接读取同一结果目录tables内的hourly_dispatch.csv，不重新模拟或改写结果。
+数据直接读取结果目录tables内的hourly_dispatch.csv或hourly_network.csv，
+可在同一窗口换用另一份分区存档，不重新模拟或改写结果。
 """
 
 import argparse
@@ -25,6 +26,7 @@ OPTIONAL_FIELDS = ("domestic_load_mw", "export_mw", "coal_mw", "gas_mw", "hydro_
                    "battery_charge_mw", "battery_discharge_mw", "reserve_shortfall_mw")
 MONTH_HOURS = PLANNING_MONTH_HOURS  # 与运行引擎及逐月工作簿相同的365日规划年。
 ALL_ZONES_LABEL = "全网汇总"
+SINGLE_ZONE_LABEL = "当前单区结果"
 
 # 框选统计只列数据实际包含的字段；分区案例的附加机组类型也逐项显示。
 GENERATION_LABELS = (("coal_mw", "煤电"), ("gas_mw", "燃气"),
@@ -488,8 +490,9 @@ def export_monthly_views(hours, destination: Path):
     return event_rows
 
 
-def launch(hours, smoke=False, zone_options=None, initial_zone=None):
-    """建立交互窗口；分区存档在同一画布切换全网及各区8760小时曲线。"""
+def launch(hours, smoke=False, zone_options=None, initial_zone=None,
+           smoke_network_dir=None):
+    """建立交互窗口；任何结果都可在此窗口载入分区存档并切换区域。"""
     import tkinter as tk
     from tkinter import filedialog, messagebox, ttk
     import matplotlib
@@ -501,28 +504,33 @@ def launch(hours, smoke=False, zone_options=None, initial_zone=None):
     matplotlib.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimSun", "DejaVu Sans"]
     matplotlib.rcParams["axes.unicode_minus"] = False
 
+    # 先把单区存档也包装为一个可选视图：图窗始终展示分区控件。
+    # 单区逐时表没有其他分区，必须由用户载入含hourly_network.csv的存档。
+    network_mode = zone_options is not None
+    views = dict(zone_options) if network_mode else {SINGLE_ZONE_LABEL: hours}
+    if not views:
+        raise ValueError("查看窗口至少需要一组逐时曲线")
+    initial_zone = initial_zone or next(iter(views))
+    if initial_zone not in views:
+        raise ValueError(f"查看器没有分区：{initial_zone}")
+    hours = views[initial_zone]
     root = tk.Tk()
     if smoke:
         root.withdraw()  # 后台验证Tk画布，不抢用户前台窗口。
-    if zone_options:
-        initial_zone = initial_zone or next(iter(zone_options))
-        if initial_zone not in zone_options:
-            raise ValueError(f"查看器没有分区：{initial_zone}")
-        hours = zone_options[initial_zone]
-    root.title("源网荷储8760小时运行图" if zone_options else "源荷储8760小时运行图")
+    root.title("源网荷储8760小时运行图" if network_mode else "源荷储8760小时运行图")
     root.geometry("1380x820")
     zone_choice = tk.StringVar(value=initial_zone or "")
-    zone_select = None
-    if zone_options:
-        # 分区选择独占一行，避免窄屏把日周月年和框选控件挤出可见范围。
-        zone_bar = ttk.Frame(root, padding=(7, 7, 7, 0))
-        zone_bar.pack(side="top", fill="x")
-        ttk.Label(zone_bar, text="查看范围").pack(side="left")
-        zone_select = ttk.Combobox(zone_bar, textvariable=zone_choice,
-                                   values=tuple(zone_options), state="readonly", width=22)
-        zone_select.pack(side="left", padx=(5, 12))
-        ttk.Label(zone_bar, text="全网汇总将内部联络线进口与出口相抵；选择分区可查看该区逐时互济",
-                  foreground="#46556A").pack(side="left")
+    # 分区控件放在图窗顶部；单区结果也能直接载入另一份分区存档，不返回主窗口。
+    zone_bar = ttk.Frame(root, padding=(7, 7, 7, 0))
+    zone_bar.pack(side="top", fill="x")
+    ttk.Label(zone_bar, text="显示分区").pack(side="left")
+    zone_select = ttk.Combobox(zone_bar, textvariable=zone_choice,
+                               values=tuple(views), state="readonly", width=22)
+    zone_select.pack(side="left", padx=(5, 12))
+    zone_note = tk.StringVar(value=("选择分区可查看逐时互济；全网汇总抵消内部交换"
+                                    if network_mode else
+                                    "当前存档只有单区逐时表；可在这里载入分区结果"))
+    ttk.Label(zone_bar, textvariable=zone_note, foreground="#46556A").pack(side="left", padx=8)
     controls = ttk.Frame(root, padding=7)
     controls.pack(side="top", fill="x")
     scale = tk.StringVar(value="日")
@@ -573,14 +581,14 @@ def launch(hours, smoke=False, zone_options=None, initial_zone=None):
         canvas.draw_idle()
         popup = tk.Toplevel(root)
         selection_popup = popup
-        popup.title(f"{zone_choice.get() + ' · ' if zone_options else ''}时段统计 · 小时 {first}–{last - 1}")
+        popup.title(f"{zone_choice.get()} · 时段统计 · 小时 {first}–{last - 1}")
         popup.transient(root)
         popup.protocol("WM_DELETE_WINDOW", close_selection_popup)
         if smoke:
             popup.withdraw()  # 后台GUI验收不抢占用户前台窗口。
         heading = ttk.Frame(popup, padding=(12, 10))
         heading.pack(fill="x")
-        ttk.Label(heading, text=f"{zone_choice.get() + ' · ' if zone_options else ''}全年小时 {first}–{last - 1}  ·  共 {report['hours']} 小时",
+        ttk.Label(heading, text=f"{zone_choice.get()} · 全年小时 {first}–{last - 1}  ·  共 {report['hours']} 小时",
                   font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w")
         ttk.Label(heading, text="电量 = 逐小时功率 × 1 h；平均功率 = 时段电量 ÷ 小时数",
                   foreground="#46556A").pack(anchor="w", pady=(3, 0))
@@ -627,7 +635,8 @@ def launch(hours, smoke=False, zone_options=None, initial_zone=None):
             a, b = int(a), int(b)
             period_label = (f"第{number.get()}{scale.get()}" if scale.get() in {"日", "周", "月"}
                             else "全年8760小时" if scale.get() == "年" else f"自定义小时 {a}–{b - 1}")
-            view_label = (f"{zone_choice.get()} · {period_label}" if zone_options else period_label)
+            view_label = (f"{zone_choice.get()} · {period_label}"
+                          if network_mode else period_label)
             state = (a, b, view_label, scale.get() == "月")
             if state != displayed:
                 close_selection_popup()
@@ -643,7 +652,7 @@ def launch(hours, smoke=False, zone_options=None, initial_zone=None):
                 canvas.draw_idle()
             start_text.set(str(a))
             end_text.set(str(b))
-            region = f"{zone_choice.get()}；" if zone_options else ""
+            region = f"{zone_choice.get()}；"
             status.set(f"当前窗口：{region}全年小时 {a}–{b - 1}，共 {b - a} 小时")
         except (ValueError, IndexError) as error:
             messagebox.showerror("时间范围错误", str(error), parent=root)
@@ -661,10 +670,31 @@ def launch(hours, smoke=False, zone_options=None, initial_zone=None):
     def switch_region(_event=None):
         """保留当前小时区间，在缓存曲线中换区并重建选择器和图例。"""
         nonlocal hours
-        if zone_options:
-            hours = zone_options[zone_choice.get()]
-            if displayed is not None:
-                redraw(displayed[0], displayed[1])
+        hours = views[zone_choice.get()]
+        if displayed is not None:
+            redraw(displayed[0], displayed[1])
+
+    def activate_network_result(folder):
+        """在当前图窗替换为另一份分区逐时存档，沿用已选的小时边界。"""
+        nonlocal views, hours, network_mode
+        new_views = load_network_views(Path(folder))
+        views, network_mode = new_views, True
+        zone_select.configure(values=tuple(views))
+        zone_choice.set(ALL_ZONES_LABEL)
+        hours = views[ALL_ZONES_LABEL]
+        root.title("源网荷储8760小时运行图")
+        zone_note.set("选择分区可查看逐时互济；全网汇总抵消内部交换")
+        if displayed is not None:
+            redraw(displayed[0], displayed[1])
+
+    def choose_network_result():
+        """让用户在同一图窗载入含分区8760小时表的结果目录。"""
+        folder = filedialog.askdirectory(parent=root, title="选择分区运行结果存档")
+        if folder:
+            try:
+                activate_network_result(folder)
+            except (OSError, ValueError, KeyError) as error:
+                messagebox.showerror("分区存档无法打开", str(error), parent=root)
 
     def shift(direction):
         """按当前尺度翻页；自定义区间保持宽度平移，不改变观察小时数。"""
@@ -682,7 +712,7 @@ def launch(hours, smoke=False, zone_options=None, initial_zone=None):
 
     def save_picture():
         """只导出当前显示时间窗口；全年原始表和Origin工程不受影响。"""
-        name = re.sub(r'[<>:"/\\|?*]', "_", zone_choice.get()) if zone_options else "system"
+        name = re.sub(r'[<>:"/\\|?*]', "_", zone_choice.get())
         a, b = displayed[:2]
         path = filedialog.asksaveasfilename(parent=root, title="保存当前视图", defaultextension=".png",
                                             initialfile=f"{name}_hour_{a}_{b - 1}.png",
@@ -691,20 +721,29 @@ def launch(hours, smoke=False, zone_options=None, initial_zone=None):
             fig.savefig(path, dpi=240, facecolor="white")
             status.set("当前视图已保存：" + path)
 
+    ttk.Button(zone_bar, text="载入分区结果…", command=choose_network_result).pack(side="left", padx=4)
     ttk.Button(controls, text="应用尺度", command=apply_scale).pack(side="left", padx=4)
     ttk.Button(controls, text="按小时区间显示", command=lambda: (scale.set("自定义"), apply_scale())).pack(side="left", padx=4)
     ttk.Button(controls, text="前一段", command=lambda: shift(-1)).pack(side="left", padx=4)
     ttk.Button(controls, text="后一段", command=lambda: shift(1)).pack(side="left", padx=4)
     ttk.Button(controls, text="导出当前PNG", command=save_picture).pack(side="left", padx=4)
-    if zone_select is not None:
-        zone_select.bind("<<ComboboxSelected>>", switch_region)
+    zone_select.bind("<<ComboboxSelected>>", switch_region)
     ttk.Label(root, textvariable=status, padding=6).pack(side="bottom", fill="x")
     redraw(0, 24)
     if smoke:
-        if zone_options and len(zone_options) > 1:
+        if smoke_network_dir is not None:
+            # 从单区窗口直接载入分区存档，验收用户指出的同窗入口。
+            scale.set("自定义")
+            redraw(137, 193)
+            activate_network_result(smoke_network_dir)
+            if displayed[:2] != (137, 193) or len(views) < 2:
+                raise AssertionError("同窗载入分区结果后未保留小时范围或分区选项")
+        if len(views) > 1:
             # 冻结EXE后台验收要真实切换另一分区，而不只检查初始汇总图。
-            zone_choice.set(next(name for name in zone_options if name != initial_zone))
+            zone_choice.set(next(name for name in views if name != zone_choice.get()))
             switch_region()
+            if zone_choice.get() not in displayed[2]:
+                raise AssertionError("切换分区后图题未随所选分区更新")
         # 选中半小时至第三小时，验证统计浮窗、整数边界和Tk控件能后台创建。
         show_selection(0.5, 2.2)
         root.update_idletasks()

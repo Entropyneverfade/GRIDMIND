@@ -12,7 +12,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-APP_VERSION = "0.2.11"
+APP_VERSION = "0.2.12"
 
 # 直接运行本文件或单文件EXE时，让窗口入口可导入同级算法包。
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -504,6 +504,9 @@ def main():
     parser = argparse.ArgumentParser(description="GRIDMIND桌面应用")
     parser.add_argument("--viewer", type=Path)
     parser.add_argument("--viewer-smoke", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--viewer-switch-smoke", nargs=2, type=Path,
+                        metavar=("SINGLE_RESULT", "NETWORK_RESULT"),
+                        help=argparse.SUPPRESS)
     parser.add_argument("--network-viewer", nargs=2, metavar=("RESULT_DIR", "ZONE"))
     parser.add_argument("--network-viewer-smoke", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--export-demo-views", nargs=2, type=Path,
@@ -663,11 +666,21 @@ def main():
         launch(views["全网汇总"], zone_options=views,
                initial_zone="全网汇总", smoke=True)
     elif args.viewer:
-        from power_ga.result_output.viewer import launch, load_hours
+        from power_ga.result_output.viewer import launch, load_hours, load_network_views
         import matplotlib
         matplotlib.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimSun", "DejaVu Sans"]
         matplotlib.rcParams["axes.unicode_minus"] = False
-        launch(load_hours(args.viewer))
+        # 直接调用--viewer时也按存档内容识别分区表；图窗内部始终可更换存档。
+        if (args.viewer / "tables" / "hourly_network.csv").is_file():
+            views = load_network_views(args.viewer)
+            launch(views["全网汇总"], zone_options=views, initial_zone="全网汇总")
+        else:
+            launch(load_hours(args.viewer))
+    elif args.viewer_switch_smoke:
+        # 后台模拟用户从截图所示单区窗口载入分区存档，再切换区域。
+        from power_ga.result_output.viewer import launch, load_hours
+        single, network = args.viewer_switch_smoke
+        launch(load_hours(single), smoke=True, smoke_network_dir=network)
     elif args.viewer_smoke:
         # 冻结包也要创建真实Tk画布和框选浮窗，再后台销毁，不打扰桌面。
         from power_ga.result_output.viewer import launch, load_hours

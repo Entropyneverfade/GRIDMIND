@@ -2,7 +2,7 @@
 
 ## 安装与启动 / Install and launch
 
-Windows 用户双击 `GRIDMIND.exe`；若旧版根目录程序仍在运行，可直接双击构建出的 `GRIDMIND_版本号.exe`。源码用户安装 `requirements.txt` 后运行 `python gridmind_app/main.py`。源码动态规划需额外安装 `requirements-gurobi.txt`；EXE已打包求解器 Python 绑定。两种方式都需本机有效 Gurobi 许可，许可文件不随程序发布。绘图控件可选 Origin 原生工程或 Python/Matplotlib；未检测到 Origin 注册时默认 Python，仍生成 PNG/PDF、图源 CSV 与再绘制脚本。The Python option works on computers without Origin and matches the dispatch data, palette, axes and time bounds.
+Windows 用户双击根目录的 `GRIDMIND.exe` 或桌面快捷方式；根目录只保留一个正式版本。源码用户安装 `requirements.txt` 后运行 `python gridmind_app/main.py`。源码动态规划需额外安装 `requirements-gurobi.txt`；EXE已打包求解器 Python 绑定。两种方式都需本机有效 Gurobi 许可，许可文件不随程序发布。绘图控件可选 Origin 原生工程或 Python/Matplotlib；未检测到 Origin 注册时默认 Python，仍生成 PNG/PDF、图源 CSV 与再绘制脚本。The Python option works on computers without Origin and matches the dispatch data, palette, axes and time bounds.
 
 ## 输入 / Inputs
 
@@ -34,7 +34,7 @@ Gurobi 在 DP 模式中优化**年度状态路径**并与 Bellman 递推交叉�
 
 存档的 `tables/跨区运行和碳硫属性汇总.xlsx` 含分区年度、机组技术、线路利用与逐时属性四页；同目录CSV可复用。`run_manifest.json` 含输入文件SHA-256、求解方式及最大守恒残差。点击“查看8760小时运行图”打开全网图，再用窗口内下拉框选分区；可按日/周/月/年或任意小时缩放。分区图中区外来电为独立供给，洋红线为本地需求加外送，淡紫虚线为本地需求。The viewer reads the saved hourly table and does not rerun optimization.
 
-0.2.11起，分区存档打开后在图上方的“查看范围”下拉框选择“全网汇总”或任一分区，不再需要每次启动都手输分区名。切换后保留当前小时区间、日周月年尺度和框选统计功能；导出当前PNG的默认文件名含分区名。全网汇总将内部进口/出口相抵，只显示各区本地需求总和；各分区图仍单独显示区外来电与外送。只有单区规划结果的存档没有分区逐时表，因此不会出现该下拉框。The selector changes the displayed archived curve without rerunning dispatch.
+0.2.12起，**每张运行图窗**顶部都有“显示分区”下拉框。单区规划图窗先显示“当前单区结果”；要在用户截图的同一窗口更换区域，点击旁边“载入分区结果…”，选择一个包含 `tables/hourly_network.csv` 的分区结果目录，随后下拉框即可选“全网汇总”或任一分区，无需返回主窗口。切换保留当前小时区间、日周月年尺度和框选功能；导出PNG的默认文件名含所选名称。全网汇总抵消内部进口/出口，各区图仍单列区外来电与外送。单区存档自身没有别区逐时值，不能凭空切换。The same window can load a zonal archive, then redraw cached curves without rerunning dispatch.
 
 ## 查看与保存 / View and archive
 

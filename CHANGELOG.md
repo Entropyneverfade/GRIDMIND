@@ -1,16 +1,21 @@
 # Development progress / 开发进度
 
+## 2026-10-14 — Stage 0.2.12 / 任意运行图窗内载入并切换分区
+
+- 修复图窗入口不一致：单区结果窗口现在也显示“显示分区”下拉框，旁边可直接“载入分区结果…”。打开有效分区存档后，同一画布可选全网汇总与各区，并保留正在看的小时区间。Every operation window exposes the selector; loading a zonal archive no longer requires closing the chart.
+- 后台EXE冒烟从单区图窗载入纯合成四区存档，实际切换分区、框选统计并退出0；无分区逐时表时清楚标注“当前单区结果”。The UI never invents missing zonal data.
+
 ## 2026-10-14 — Stage 0.2.11 / 同窗切换各分区8760小时图
 
 - 分区结果查看器增加“全网汇总/各分区”下拉框，切换时保持时间尺度与框选统计；全网图逐小时验证并抵消内部进口和外送，各区图保留本区交换。The selector redraws cached archived curves without another solver run.
 - 四张固定种子合成分区全年预览直接嵌入五章报告；图形使用应用的Python/Matplotlib后端，绝非真实省级运行数据。Four region previews document the supported viewer mode.
-- 61项本地合成测试通过；四区8760小时加全网图的最大逐时功率残差 $`5.68\times10^{-14}`$ MW；冻结单文件EXE的分区切换与框选浮窗后台验收退出码0，桌面快捷方式仍指向当前根目录EXE。The packaged viewer passed its hidden-window smoke check.
+- 61项本地合成测试通过；四区8760小时加全网图的最大逐时功率残差 $5.68\times10^{-14}$ MW；冻结单文件EXE的分区切换与框选浮窗后台验收退出码0，桌面快捷方式仍指向当前根目录EXE。The packaged viewer passed its hidden-window smoke check.
 
 ## 2026-10-14 — Stage 0.2.10 / 框选统计与单一EXE交付
 
 - 交互查看器新增左键横向框选，浮窗按整小时汇总机组发电、风光弃电、抽蓄和电池充放、本地负荷、外送与区外来电，并显示MWh、平均MW和选段平衡残差。The nonmodal popover reads the archived hourly table and survives no stale redraws.
 - Windows打包脚本只交付根目录当前版EXE；旧版被占用时新版留在应用子目录，历史EXE转移至本地归档；可选创建桌面快捷方式。The repository documents current verified capabilities and practical advantages without publishing private cases.
-- 60项本地合成测试通过；实际四区合成168小时框选的平衡残差为约 $`3.64\times10^{-12}`$ MWh；冻结EXE的隐藏窗口浮窗验收退出码0，桌面快捷方式指向当前EXE。Sixty local tests and the packaged viewer smoke check passed.
+- 60项本地合成测试通过；实际四区合成168小时框选的平衡残差为约 $3.64\times10^{-12}$ MWh；冻结EXE的隐藏窗口浮窗验收退出码0，桌面快捷方式指向当前EXE。Sixty local tests and the packaged viewer smoke check passed.
 
 ## 2026-10-14 — Stage 0.2.9 / 后台绘图窗口修复
 
@@ -32,7 +37,7 @@
 
 - 项目运行的富余风光按可用份额分摊弃电，三年度纯合成案例重跑、独立物理回算后同时出现弃风和弃光；12张月图、五种缩放图及Origin GA/DP图重新生成。The synthetic GA/DP case and figures were regenerated after the curtailment rule change.
 - 新增独立分区小时LP、仅适用可控通道的启发式路径调度、8760小时合成网络试验及碳/SO₂/新能源属性追踪。公开资料仅确定示意连接方向，容量、电纳和需求均为合成假设；这些API尚未接入应用规划入口。Zonal transfer and physical attribute tracing are verified modules, not a production network model.
-- 研究报告合并成五章，GitHub数学公式改为`$...$`/`$$...$$`，19张新版图直接嵌入。Real project inputs and derived outputs remain local.
+- 研究报告合并成五章，GitHub数学公式改为$...$/$$...$$，19张新版图直接嵌入。Real project inputs and derived outputs remain local.
 
 ## 2026-10-14 — Stage 0.2.6 / 动态规划过程可见性
 
