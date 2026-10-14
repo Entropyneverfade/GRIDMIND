@@ -43,13 +43,24 @@ def _bits(mask, count):
 def _state_costs(cases, count, progress=None):
     """每一阶段每一状态只运行一次8760小时；可行性由共同评价器判断。"""
     tables = []
+    states_per_stage = 1 << count  # n个候选0/1位对应2^n个年度投运状态。
+    total_evaluations = len(cases) * states_per_stage
+    # 每阶段最多约16次进度通知，避免逐状态消息淹没Tk窗口队列。
+    progress_stride = max(1, states_per_stage // 16)
     for t, case in enumerate(cases):
         row = {}
-        for state in range(1 << count):
+        for state in range(states_per_stage):
             row[state] = evaluate_project(case, _bits(state, count))
+            completed_stage = state + 1
+            # 总体比例=(已完成的完整阶段×2^n+本阶段已完成数)/(阶段数×2^n)。
+            if progress and (completed_stage % progress_stride == 0 or
+                             completed_stage == states_per_stage):
+                completed_total = t * states_per_stage + completed_stage
+                percent = 100 * completed_total / total_evaluations
+                progress(f"阶段 {t + 1}/{len(cases)}：状态 "
+                         f"{completed_stage}/{states_per_stage}， 总体 "
+                         f"{completed_total}/{total_evaluations} ({percent:.1f}%)")
         tables.append(row)
-        if progress:
-            progress(f"阶段 {t + 1}/{len(cases)}：已评价 {len(row)} 个8760小时投运状态")
     return tuple(tables)
 
 

@@ -12,7 +12,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-APP_VERSION = "0.2.5"
+APP_VERSION = "0.2.6"
 
 # 直接运行本文件或单文件EXE时，让窗口入口可导入同级算法包。
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))

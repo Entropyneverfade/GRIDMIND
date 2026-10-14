@@ -6,11 +6,14 @@ GRIDMIND is a modular research prototype for generation planning and chronologic
 
 **0.2.5 GA初代 / GA seeding:** 多年度比较中的单项目初代改为按规划年交织，并在运行清单中记录策略版本；旧0.2.4的预算实验保留作历史对照。The annual stage costs and Bellman/Gurobi solution are unchanged; see the [paired seed-policy comparison](docs/CASE_STUDY.md).
 
+**0.2.6 计算进度 / Planning progress:** 多年度动态规划按年度状态批次显示总体完成比例；状态费用和GA/DP决策不变。The desktop window now updates progress during each annual state sweep instead of waiting for a whole year to finish.
+
 ## Current capabilities / 当前能力
 
 - Binary candidate-project encoding, initial population, selection, crossover, mutation, elitism and convergence records. / 候选项目二元编码、初代、选择、交叉、变异、精英保留及收敛记录。
 - Stage-balanced single-project seeds for the multi-year GA comparison, with the policy version saved in result archives. / 多年度GA按规划年均衡放入单项目初代种子，并把策略版本写入存档。
 - Two-year or full annual-source stage-state dynamic programming with Bellman recursion and an independently optimized Gurobi state model; the desktop app can switch planning methods. / 双年度或完整年度源库的状态动态规划与 Gurobi 独立核验，桌面应用可切换规划方法。
+- Bounded per-stage and overall progress updates during long dynamic-planning runs. / 长时动态规划按状态批次显示年度与总体进度。
 - A deterministic 8,760-hour single-region operation model covering coal, gas, conventional hydro, pumped storage, battery storage, wind, solar PV and biomass. / 单区域全年8760小时确定性运行，覆盖八类机组。
 - Storage charge, discharge and internal energy carry continuously across day and month boundaries. / 储能功率与内部库存跨日、跨月连续。
 - One workbook for annual, monthly, daily, hourly, project, storage, GA and data-quality tables. Static figures are kept in separate figure folders; the desktop viewer supports day, week, month, year and arbitrary hour ranges. / 一份汇总工作簿，图表分开存档，交互窗口支持日周月年和任意小时区间。

@@ -2,6 +2,7 @@
 
 import unittest
 import json
+import re
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,7 +11,7 @@ from unittest.mock import patch
 from openpyxl import load_workbook
 
 from power_ga.data_collection.project_case import CasePlant, ProjectCase, align_stage_case
-from power_ga.dynamic_planning.solver import _dp_tables, _gurobi_path, _validate_cases
+from power_ga.dynamic_planning.solver import _dp_tables, _gurobi_path, _state_costs, _validate_cases
 from power_ga.genetic_iteration.project_solver import evaluate_project
 from power_ga.operation_simulation.project_engine import simulate_project
 from power_ga.result_output.dynamic_report import write_dynamic_report
@@ -18,6 +19,35 @@ from project_main import execute
 
 
 class DynamicPlanningTests(unittest.TestCase):
+    def test_stage_cost_progress_reports_intermediate_and_final_counts(self):
+        """长时状态评价须报告单调的年度/总体进度，数值求值次数不变。"""
+        messages = []
+        calls = []
+
+        def fake_evaluate(case, bits):
+            """只构造已知二元状态费用；不运行8760小时以隔离进度逻辑。"""
+            calls.append((case, bits))
+            return sum(bits)
+
+        with patch("power_ga.dynamic_planning.solver.evaluate_project",
+                   side_effect=fake_evaluate):
+            tables = _state_costs(("year_a", "year_b"), 5, messages.append)
+        self.assertEqual(64, len(calls))
+        self.assertEqual(2, len(tables))
+        self.assertEqual(5, tables[0][31])
+        counts = []
+        for message in messages:
+            match = re.search(r"状态 (\d+)/32， 总体 (\d+)/64 \(([\d.]+)%\)", message)
+            self.assertIsNotNone(match, message)
+            counts.append((int(match.group(1)), int(match.group(2)),
+                           float(match.group(3))))
+        self.assertGreater(len(counts), 2)  # 原实现只在两个阶段末各报告一次。
+        self.assertLess(counts[0][1], 32)
+        self.assertEqual((32, 64, 100.0), counts[-1])
+        self.assertEqual(sorted(item[1] for item in counts),
+                         [item[1] for item in counts])
+        self.assertEqual(1, sum(item[1] == 64 for item in counts))
+
     def test_year_only_project_is_exogenous_and_charged(self):
         """只在中间年度出现的增量应供电并付年费，不能悄悄丢弃或挤占终期位。"""
         old = CasePlant(1, "合成煤电", "coal", 50, .4, 300, 0)

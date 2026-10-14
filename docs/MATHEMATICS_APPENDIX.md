@@ -254,3 +254,14 @@ N_t(K)\in\left\{\left\lfloor K/T\right\rfloor,
 \]
 
 这只消除按末年整块截断的结构性偏置，不保证最优染色体进入Gen=0，也不保证GA找到全局最优。相同随机种子可复现排列；运行清单和GA/DP审计均记录 `balanced_by_stage_v2`，便于区别旧版归档。The Bellman/Gurobi annual-state costs and physical dispatch are unchanged by this population-order correction.
+
+### 全规划年状态进度 / Progress of annual-state evaluation
+
+若共有 \(T\) 个规划年、\(n\) 个候选建设位，每年都要评价 \(2^n\) 个状态。在零基年度序号 \(t\) 内已完成 \(k\) 个状态时，窗口显示的总体完成比例为
+
+\[
+q(t,k)=\frac{t2^n+k}{T2^n}\times100\%,\qquad
+0\le t<T,\quad1\le k\le2^n.
+\]
+
+通知按状态批次发出，最后一个状态恰显示100%。这是已完成评价数量的比例；不同状态的8760小时计算耗时可能不同，故 \(q\) 不是剩余时间估计。The v0.2.6 progress indicator changes only reporting frequency, not the Bellman objective or the hourly simulation.

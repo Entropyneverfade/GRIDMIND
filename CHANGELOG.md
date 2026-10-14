@@ -1,5 +1,10 @@
 # Development progress / 开发进度
 
+## 2026-10-14 — Stage 0.2.6 / 动态规划过程可见性
+
+- 每年度最多约16次状态评价进度通知，显示本年与总体已完成状态数及百分比；后台计算仍通过线程安全队列传回窗口。The long multi-year run now reports bounded, monotone progress within each annual state sweep.
+- 费用、运行模型和遗传算子未改动；合成回归核对阶段表、所选路径和逐时物理残差。No planning or dispatch equation changed in this release.
+
 ## 2026-10-14 — Stage 0.2.5 / 多年度GA初代均衡
 
 - 多年度GA的单项目Gen=0种子改按规划年交织，任意容量截断前缀的年度种子数最多相差1；旧版末年整块优先排序不再默认。Multi-year single-project seeds are interleaved across years before population truncation, removing a structural late-year preference.

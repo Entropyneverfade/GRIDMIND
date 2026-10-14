@@ -13,6 +13,8 @@ Windows 用户双击 `GRIDMIND.exe`；若旧版根目录程序仍在运行，可
 
 动态规划当前最多允许8个候选位，目标年须至少比基年晚2年，贴现率默认7%。每阶段费用使用已投运候选年化费、当年外生计划年化费和全年运行费。超出上限时给出错误，不截断候选集。全规划年会执行“阶段数×2^候选位数”次全年评价，请为计算留出时间。The cap prevents accidental exponential runs and never silently drops projects.
 
+0.2.6起，状态栏在每个规划年内按批次报告“本年已完成/本年总状态、总体已完成/总体总状态（百分比）”。每年最多约16次通知；百分比只表示已完成的8760小时状态评价数量，不是剩余时间预测。Since v0.2.6 the desktop status shows bounded state-evaluation progress across the full horizon; it is a count, not an ETA.
+
 如果曾用 0.2.1 或 0.2.2 的“年度源库”模式生成结果，请用 0.2.3 或更新版本重新运行：前者误用终期既有装机，后者漏掉仅中间年度出现的计划增量。Prior source-mode archives from 0.2.1 and 0.2.2 require rerunning for these distinct annual alignment defects.
 
 Gurobi 在 DP 模式中优化**年度状态路径**并与 Bellman 递推交叉核验；各状态的全年运行费仍由已说明的确定性8760小时运行规则计算。The stage MILP is not a yearlong unit commitment or network power-flow optimization.
