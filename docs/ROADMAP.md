@@ -1,26 +1,34 @@
-# 未来开发计划 / Development roadmap
+# 开发计划与验收条件
 
-## 已完成并验证 / Verified
+## 版本状态
 
-- 八类电源的 8,760 小时确定性运行、抽蓄与电池逐站库存、月水电预算上界。Eight resource classes, hourly balance, storage continuity and monthly hydro bounds.
-- 单区项目运行的站级小时爬坡、跨日最短开停、月出力及计划检修约束；结果含逐站状态与来源标注的参数快照。Station-level chronology is audited from archived hourly trajectories.
-- 单年二元遗传规划、双年度或完整年度序列的阶段状态动态规划，以及Gurobi状态路径独立核验。Single-year GA and two-year or full annual-sequence DP with Gurobi validation.
-- 完整年度序列可逐年读取负荷、外送、风光及水文曲线；候选项目采用终期统一编码。Each annual stage uses its own operating profiles while preserving common project bits.
-- 各年度已有机组按各自年度库的有效容量运行，候选项目仍按统一状态位投运。Existing units use year-specific effective capacity; optional projects retain common state bits.
-- 仅中间年度出现的计划项目可作为该年度外生容量与年化费用输入，并单列审计。Source-year-only planned projects enter that year's supply and annualized cost as separately audited exogenous inputs.
-- 原创图标 Windows EXE、规划算法切换、日周月年及任意区间窗口、图表分开存档。Windows application, algorithm selector, zoom viewer and separate table/figure archives.
-- 分区CSV结果同一窗口切换全网与各区8760小时图、保持当前时段并框选统计；合成四区全网内部交换逐时抵消。Zonal viewer selection and period statistics from archived hourly outputs.
-- 公开合成 GA/DP 案例、两种算法同口径对比、12 张月图及完整公式。Synthetic case, comparison, monthly gallery and mathematical derivations.
+当前公开功能基线为 0.2.14。本次报告重写、公式兼容性与展示整理属于文档修订，不提升功能版本。1.0 集成候选正在开发和验收，1.1 为后续闭环目标。
 
-## 下一阶段 / Next stage
+## 1.0：结果档案和工作台
 
-1. 将中间年度独有项目的建设和退役也纳入内生状态转移，并加入最早可投运年份与建设工期。全规划年选项当前仍将它们作为对应年度的外生给定。Make temporary projects, commissioning and retirement endogenous; the full-horizon mode currently treats them as annual exogenous commitments.
-2. DP 状态压缩、支配剪枝与可行上界，扩展超过 8 个候选位时的计算能力；对照全枚举正确性。Reduce exponential state enumeration while retaining exact checks on small cases.
-3. 从当前每日一次站级开机扩展到逐台机组或整数在线台数，支持亚小时启动/停机爬坡、自动年度检修天数与启停燃耗；再推进水电库容、水头和梯级联动。Extend the station-level heuristic to unit-level chronology and hydraulic dynamics with independent residual checks.
-4. 将现有独立分区线路约束接入GA/DP每状态8760小时评价，并加入分区储能SOC核验；当前分区入口只读外部给定储能时序。N−1与完整电压无功潮流仍属后续阶段。Connect the verified zonal runner to planning decisions and storage chronology without claiming unavailable contingency or AC studies.
-5. 多天气年与故障情景的概率可靠性指标、ELCC 与投资不确定性；明确区分确定性 ENS 和概率 EENS/LOLE。Extend scenario-based adequacy and ELCC.
-6. 真实数据导入模板、经济参数来源版本化、自动图像 QA 与更细的用户错误提示。Strengthen ingestion, provenance, visual QA and error reporting.
-7. 在公开输入及同口径控制变量下核对水电月预算/逐时出力、储能初态与效率、机组边界，再比较风光弃电；差异未逐项解释前不归因于单一规则。Calibrate operating assumptions before attributing result differences.
-8. 以多随机种子、搜索预算、候选规模和情景检验GA运行时间与最优性；可穷举规模用DP/Gurobi提供同口径对照。Study GA sensitivity and exact small-case baselines.
+- 已计算算例独立命名存档，复制必要图表、参数与来源快照；重启后可打开，原计算目录不可用时仍可浏览。
+- 分区按系统表识别，联络按同次输入联络表的端点、方向、类型与限额绘制；没有逐区数据时明确提示，不能从全网曲线推造。
+- GA 每代保留种群索引，DP 每阶段保留全部状态前沿与前驱。每个唯一年度状态首次评价保存完整时序，重复方案复用；代表、异常及随机抽查方案可查看图表。
+- 神经网络工作台使用公开适配接口调用私有模块；显示检查点来源、预测时域、单位与未物理验证状态。
 
-每项新能力需先有合成已知答案、守恒残差、再进入项目试算。Every feature must pass a reproducible synthetic known-answer test and physical invariant check before being reported as complete.
+必须在实际候选程序验收免重算浏览和拓扑，核查没有模拟、求解或训练调用；仅有单测、后台冒烟或调用返回零不算完成。验收后才更新正式 EXE、桌面快捷方式与对应功能发布。
+
+## 优化工具分工
+
+Gurobi 当前作为主要优化工具。ZYO 为可选后端，可以在功能不全时先承担能力范围内的子问题。不支持的部分继续使用 Gurobi；界面与回执记录请求后端、实际后端、回退原因、原始状态、目标、界、Gap、耗时和残差。
+
+对照使用同一模型与费用表，独立重算可行性和目标。多个最优解不要求路径相同；限时、不可行、数值失败不能改写成最优。不用一次小算例宣称性能优势。
+
+## 1.1：规划—优化—充裕度闭环
+
+1. GA/DP 产生建设方案与状态证据。
+2. ZYO 至少在一个可复现算例中真实承担已支持的优化子问题，并与 Gurobi 对照；其余部分可由 Gurobi 完成。
+3. 私有神经网络模块根据统一状态和时域估计充裕度指标。
+4. 独立蒙特卡洛验证保存样本、风险估计、统计误差和模型来源。
+5. 将验证差异及可用训练样本回传，记录下一轮规划和训练依据，形成可追溯闭环。
+
+风险定义、随机停运与修复、天气负荷相关性、储能时序、种子与共同随机数、停止规则、置信区间和训练/验证隔离先经理论核对。新科学阈值和计算预算另行确认。确定性缺供不能称为 EENS；24 小时代理输出不能直接乘 365 视为年度风险；预测成功不等于物理验证。
+
+## 后续模型扩展
+
+逐台机组、跨年状态、检修自动排程、网络进入规划适应度、完整水电与储能属性库存分项设计。每项以明确输入、单位、反例、残差和可复现输出验收，不用模型名称替代证据。

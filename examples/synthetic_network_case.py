@@ -1,4 +1,4 @@
-"""公开连接方向启发的四区合成8760小时潮流试验；所有数值均为虚构。"""
+"""四分区合成8760小时潮流试验；所有数值均为虚构。"""
 
 import argparse
 import csv
@@ -12,16 +12,12 @@ from power_ga.operation_simulation.network import (
 from power_ga.operation_simulation.network_case import run_network_case
 
 
-# 公开资料仅证实山西向华北、华中、江苏有外送互联，且晋北—南京直流存在。
-# 下列“区域”是聚合节点而非真实母线；限额、电纳、需求与机组参数均为教学假设。
-SOURCES = (
-    "https://zfxxgk.nea.gov.cn/2024-06/11/c_1212388601.htm",
-    "https://jsb.nea.gov.cn/dtyw/jgdt/202309/t20230910_28887.html",
-)
+# 分区与联络仅定义合成教学算例；不映射真实地理拓扑。
+SOURCES = ()
 LINKS = (
-    Link("晋华北_示意交流", "山西", "华北", 22.0, "ac", 120.0),
-    Link("晋华中_示意交流", "山西", "华中", 16.0, "ac", 100.0),
-    Link("晋苏_示意直流", "山西", "江苏", 12.0, "dc"),
+    Link("通道_AB", "分区A", "分区B", 22.0, "ac", 120.0),
+    Link("通道_AC", "分区A", "分区C", 16.0, "ac", 100.0),
+    Link("通道_AD", "分区A", "分区D", 12.0, "dc"),
 )
 
 
@@ -37,18 +33,18 @@ def build_hours():
         # 负荷、风、光分别叠加有界随机扰动，避免机械重复的日形状。
         wind = 60 * max(0.02, min(0.95, 0.45 + 0.25 * season + rng.uniform(-0.25, 0.25)))
         solar = 68 * solar_cf * (0.55 + 0.45 * rng.random())
-        shanxi_load = 72 + 7 * daily + 6 * season + rng.uniform(-4, 4)
-        north_load = 43 + 5 * daily + rng.uniform(-3, 3)
-        central_load = 31 + 4 * daily + rng.uniform(-3, 3)
-        jiangsu_load = 27 + 3 * daily + rng.uniform(-2, 2)
-        hourly_zones.append((Zone("山西", shanxi_load, wind, solar),
-                             Zone("华北", north_load), Zone("华中", central_load),
-                             Zone("江苏", jiangsu_load)))
+        zone_a_load = 72 + 7 * daily + 6 * season + rng.uniform(-4, 4)
+        zone_b_load = 43 + 5 * daily + rng.uniform(-3, 3)
+        zone_c_load = 31 + 4 * daily + rng.uniform(-3, 3)
+        zone_d_load = 27 + 3 * daily + rng.uniform(-2, 2)
+        hourly_zones.append((Zone("分区A", zone_a_load, wind, solar),
+                             Zone("分区B", zone_b_load), Zone("分区C", zone_c_load),
+                             Zone("分区D", zone_d_load)))
         hourly_generators.append((
-            Generator("晋煤_合成", "山西", 30, 90, 240),
-            Generator("华北气_合成", "华北", 0, 55, 460),
-            Generator("华中水_合成", "华中", 0, 37, 55),
-            Generator("江苏气_合成", "江苏", 0, 33, 470),
+            Generator("机组A_煤电", "分区A", 30, 90, 240),
+            Generator("机组B_燃气", "分区B", 0, 55, 460),
+            Generator("机组C_水电", "分区C", 0, 37, 55),
+            Generator("机组D_燃气", "分区D", 0, 33, 470),
         ))
     return hourly_zones, hourly_generators
 
@@ -63,12 +59,12 @@ def write_case_input(destination: Path):
         writer.writerow(("zone",))
         writer.writerows((zone.name,) for zone in zones[0])
     # tCO₂/MWh与kgSO₂/MWh只用于演示守恒，不作为任何地区实测排放因子。
-    factors = {"晋煤_合成": ("coal", 0.82, 0.30, 0),
-               "华北气_合成": ("gas", 0.39, 0.03, 0),
-               "华中水_合成": ("hydro", 0, 0, 1),
-               "江苏气_合成": ("gas", 0.39, 0.03, 0),
-               "晋生物质_合成": ("biomass", 0.08, 0.05, 1)}
-    units = (*generator_hours[0], Generator("晋生物质_合成", "山西", 0, 5, 180))
+    factors = {"机组A_煤电": ("coal", 0.82, 0.30, 0),
+               "机组B_燃气": ("gas", 0.39, 0.03, 0),
+               "机组C_水电": ("hydro", 0, 0, 1),
+               "机组D_燃气": ("gas", 0.39, 0.03, 0),
+               "机组A_生物质": ("biomass", 0.08, 0.05, 1)}
+    units = (*generator_hours[0], Generator("机组A_生物质", "分区A", 0, 5, 180))
     with (destination / "generators.csv").open("w", newline="", encoding="utf-8-sig") as stream:
         writer = csv.writer(stream)
         writer.writerow(("name", "zone", "technology", "minimum_mw", "maximum_mw",
@@ -96,10 +92,10 @@ def write_case_input(destination: Path):
             hod = hour % 24
             for zone in hourly:
                 # 每日先充4小时、傍晚放4小时；8MWh充电→6.4MWh放电相当于80%往返效率。
-                battery_charge = 2.0 if zone.name == "山西" and hod < 4 else 0.0
-                battery_discharge = 1.6 if zone.name == "山西" and 18 <= hod < 22 else 0.0
-                pumped_charge = 3.0 if zone.name == "华北" and hod < 4 else 0.0
-                pumped_discharge = 2.4 if zone.name == "华北" and 18 <= hod < 22 else 0.0
+                battery_charge = 2.0 if zone.name == "分区A" and hod < 4 else 0.0
+                battery_discharge = 1.6 if zone.name == "分区A" and 18 <= hod < 22 else 0.0
+                pumped_charge = 3.0 if zone.name == "分区B" and hod < 4 else 0.0
+                pumped_discharge = 2.4 if zone.name == "分区B" and 18 <= hod < 22 else 0.0
                 writer.writerow((hour, zone.name, zone.demand_mw,
                                  zone.wind_available_mw, zone.solar_available_mw,
                                  pumped_charge, pumped_discharge,
@@ -107,7 +103,7 @@ def write_case_input(destination: Path):
                                  *((0.40, 0.10, 0.35) if pumped_discharge else ("", "", "")),
                                  *((0.35, 0.08, 0.45) if battery_discharge else ("", "", ""))))
     (destination / "INPUT_NOTE.md").write_text(
-        "# 公开合成分区输入\n\n只有连接方向参考公开资料；聚合节点、需求、装机、线路限额、"
+        "# 公开合成分区输入\n\n分区与联络为合成算例定义；节点、需求、装机、线路限额、"
         "电纳、成本与排放因子均由固定种子或人工教学假设生成。抽蓄/电池的固定日计划"
         "按80%往返效率形成每日能量闭环，放电属性是额外明示的教学假设。\n\n"
         "交流边请选择Gurobi LP；启发式模式必须把所有边显式设为可控通道，"

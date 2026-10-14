@@ -17,5 +17,20 @@
     "固定储能计划及放电属性由输入提供，未优化或审核储能库存",
     "交流为无损线性有功潮流，无电压无功和N-1",
     "物理属性分摊不是绿证所有权或经济全产业链MRIO"
-  ]
+  ],
+  "published_input_sha256": {
+    "zones.csv": "947821ba54c57b437eebf4f345c1a3056b04e40bc80d2426a095dc4b80da6c1c",
+    "generators.csv": "daf1f108f8d691d1546f02e619a489d3ee0b925337038e56ed5169358762d707",
+    "links.csv": "ea233d9d37443b2bfc9ab79408307f1ba9abd0960a0bc0f6af1d4d5b897fa0c0",
+    "hourly.csv": "7cfe741e8f72e6e6036fd5c74841c2ab210f4a1d4f3b920f363d895ca0ebe0c5"
+  },
+  "publication_revision": {
+    "kind": "identifier_anonymization",
+    "simulation_rerun": false,
+    "numeric_values_changed": false,
+    "connectivity_changed": false,
+    "original_run_hash_field": "input_sha256",
+    "published_copy_hash_field": "published_input_sha256",
+    "note": "原运行指纹保留；当前发布副本统一分区、机组与通道泛称。显示修订没有重新运行模拟。"
+  }
 }

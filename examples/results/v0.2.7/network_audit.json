@@ -7,19 +7,19 @@
   "solar_curtailment_mwh": 315.66353373945327,
   "links": [
     {
-      "name": "晋华北_示意交流",
+      "name": "通道_AB",
       "kind": "ac",
       "assumed_limit_mw": 22.0,
       "assumed_susceptance_mw_per_rad": 120.0
     },
     {
-      "name": "晋华中_示意交流",
+      "name": "通道_AC",
       "kind": "ac",
       "assumed_limit_mw": 16.0,
       "assumed_susceptance_mw_per_rad": 100.0
     },
     {
-      "name": "晋苏_示意直流",
+      "name": "通道_AD",
       "kind": "dc",
       "assumed_limit_mw": 12.0,
       "assumed_susceptance_mw_per_rad": null
