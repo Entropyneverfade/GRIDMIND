@@ -1,6 +1,6 @@
 # GRIDMIND
 
-**请先阅读[五章完整研究报告 / Complete five-chapter report](docs/FINAL_STAGE_REPORT.md)：** 概述、GA与DP、运行规则、纯合成算例参数、结果及全部28张内嵌图片均在同一页面；公式使用GitHub可渲染的数学格式。分区传输与碳/SO₂/新能源属性已提供独立CSV应用入口，尚未接入真实项目GA/DP适应度。The single report contains all current synthetic figures and equations.
+**请先阅读[五章完整研究报告 / Complete five-chapter report](docs/FINAL_STAGE_REPORT.md)：** 概述、GA与DP、运行规则、纯合成算例参数、结果及图片均在同一页面；公式使用GitHub可渲染的数学格式。分区传输与碳/SO₂/新能源属性已提供独立CSV应用入口，尚未接入真实项目GA/DP适应度。The single report contains synthetic figures and readable equations.
 
 **0.2.7 弃电规则 / Curtailment:** 项目运行改为按当时风光可用出力份额分摊弃电，重跑三年度合成算例后同时出现弃风和弃光。An explicitly parameterized network prototype and a physical attribute tracing layer are included as separate modules.
 
@@ -13,6 +13,8 @@
 **0.2.12 图窗分区切换 / Zonal viewer:** 每张运行图窗顶部都有“显示分区”；单区结果可直接点击“载入分区结果…”选取分区运行存档，随后在同一窗口切换全网汇总和各区，保留当前小时区间。全网图先验证进口等于出口，再抵消内部交换；各分区保留本区进口和外送。The [four full-year zonal views](docs/FINAL_STAGE_REPORT.md) use fixed synthetic data; a single-region archive alone cannot reconstruct other zones.
 
 **0.2.13 数据库分区与日期缩放 / Database regions and calendar zoom:** 图窗从兼容工作簿的系统、负荷、节点和电站表自动列出有效分区；只有单区汇总逐时表时，其他区域明确标记尚无逐区结果。Ctrl+滚轮按鼠标所在小时缩放，日期横轴在短窗口标注每日零点、全年抽稀到月初。The [synthetic day, week and year previews](docs/FINAL_STAGE_REPORT.md) show the new calendar ticks; no project-derived curve is published.
+
+**0.2.14 机组动态约束 / Generator chronology:** 单区项目运行新增站级小时爬坡、跨日最短开停、燃气特性启停编码、月机组出力和检修边界，并存档逐站8760状态、参数及来源。The [new synthetic annual workbook](examples/results/v0.2.14/ga_annual_summary.xlsx), [hourly unit table](examples/results/v0.2.14/unit_commitment_hourly.csv) and report figures use a newly rerun fixed-seed case. This is a station-level daily commitment heuristic; unit-level and sub-hourly security remain open.
 
 GRIDMIND is a modular research prototype for generation planning and chronological power system operation. GRIDMIND 是模块化的电源规划与全年逐时运行研究原型。桌面入口位于 `gridmind_app/`，算法位于 `power_ga/`，两者通过 `project_main.execute()` 连接。
 
@@ -29,6 +31,7 @@ GRIDMIND is a modular research prototype for generation planning and chronologic
 - Two-year or full annual-source stage-state dynamic programming with Bellman recursion and an independently optimized Gurobi state model; the desktop app can switch planning methods. / 双年度或完整年度源库的状态动态规划与 Gurobi 独立核验，桌面应用可切换规划方法。
 - Bounded per-stage and overall progress updates during long dynamic-planning runs. / 长时动态规划按状态批次显示年度与总体进度。
 - A deterministic 8,760-hour single-region operation model covering coal, gas, conventional hydro, pumped storage, battery storage, wind, solar PV and biomass. / 单区域全年8760小时确定性运行，覆盖八类机组。
+- Station-level hourly ramp limits, cross-day minimum up/down times, monthly generation and planned-maintenance limits, with source-labeled fallback parameters and auditable unit-hour output. / 站级爬坡、跨日启停与月机组边界均留逐站证据及默认值来源。
 - Storage charge, discharge and internal energy carry continuously across day and month boundaries. / 储能功率与内部库存跨日、跨月连续。
 - One workbook for annual, monthly, daily, hourly, project, storage, GA and data-quality tables. Static figures are kept in separate figure folders; the desktop viewer supports day, week, month, year and arbitrary hour ranges. / 一份汇总工作簿，图表分开存档，交互窗口支持日周月年和任意小时区间。
 - A separate four-CSV zonal mode solves 8,760 hourly power balances and traces physical carbon, SO₂ and renewable attributes to served demand. / 独立分区入口读取四张CSV、输出潮流与碳硫属性综合表，支持逐区缩放。

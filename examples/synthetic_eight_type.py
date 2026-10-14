@@ -5,10 +5,11 @@ import csv
 import json
 import math
 import random
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
-from power_ga.data_collection.project_case import CasePlant, ProjectCase, read_costs
+from power_ga.data_collection.project_case import (OPERATING_DEFAULTS, CasePlant,
+                                                   ProjectCase, read_costs)
 from power_ga.operation_simulation.project_engine import simulate_project
 
 
@@ -84,6 +85,17 @@ def build_case(with_candidates=False):
         CasePlant(108, "Candidate PV", "solar", 20, 0,
                   variable("solar"), annual("solar", 20), tuple(solar)),
     ) if with_candidates else ()
+    def add_operating_defaults(plant):
+        """公开合成站也显式启用同一试算爬坡/启停值，不沿用无约束构造默认。"""
+        if plant.technology not in OPERATING_DEFAULTS:
+            return plant
+        ramp, up, down = OPERATING_DEFAULTS[plant.technology]
+        return replace(plant, ramp_fraction_per_hour=ramp, min_up_hours=up,
+                       min_down_hours=down, max_daily_starts=1,
+                       parameter_source="公开合成技术基准试算")
+
+    plants = tuple(map(add_operating_defaults, plants))
+    candidates = tuple(map(add_operating_defaults, candidates))
     # 外送设零，仅用于演示八类技术的单区域运行；源路径字段不含外部信息。
     return ProjectCase(2025, 2026 if with_candidates else 2025, plants, candidates,
                        tuple(load), (0.0,) * 8760, 0.10, 0.0, (), "synthetic",

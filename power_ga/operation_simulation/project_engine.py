@@ -50,6 +50,8 @@ class ProjectSimulation:
     summary: dict
     station_generation_mwh: dict
     storage_hourly: tuple = ()
+    commitment_hourly: tuple = ()
+    operating_plants: tuple = ()
 
 
 class _Storage:
@@ -157,8 +159,15 @@ def simulate_project(case: ProjectCase, chromosome, keep_hourly=False,
     for bit, candidate in zip(chromosome, case.candidates):
         if bit:
             old = by_station.get(candidate.station_id)
-            by_station[candidate.station_id] = (replace(old, capacity_mw=old.capacity_mw + candidate.capacity_mw)
-                                                if old else candidate)
+            by_station[candidate.station_id] = (
+                replace(old, capacity_mw=old.capacity_mw + candidate.capacity_mw,
+                        unit_count=old.unit_count + candidate.unit_count,
+                        startup_cost_yuan=old.startup_cost_yuan + candidate.startup_cost_yuan,
+                        planned_maintenance_units=tuple(a + b for a, b in zip(
+                            old.planned_maintenance_units, candidate.planned_maintenance_units)),
+                        monthly_min_online_units=tuple(a + b for a, b in zip(
+                            old.monthly_min_online_units, candidate.monthly_min_online_units)))
+                if old else candidate)
     plants = tuple(by_station.values())
     wind_avail = _renewable_availability(plants, "wind")
     solar_avail = _renewable_availability(plants, "solar")
@@ -195,38 +204,95 @@ def simulate_project(case: ProjectCase, chromosome, keep_hourly=False,
     station_mwh = {p.name: 0.0 for p in plants}
     rows = []
     storage_rows = []
+    commitment_rows = []
     peak_residual = 0.0
     shortage_hours = 0
     online = ()
+    # 年初全部常规机组停机且已满足最短停机时间；状态在日/月边界连续。
+    previous_power = {p.station_id: 0.0 for p in dispatchable}
+    on_hours = {p.station_id: 0 for p in dispatchable}
+    off_hours = {p.station_id: max(8760, p.min_down_hours) for p in dispatchable}
+    starts_today = {p.station_id: 0 for p in dispatchable}
+    last_online = set()
+    startup_count = 0
+    max_ramp_residual = 0.0
     for t in range(8760):
         month = month_of[t]
         if t % 24 == 0:
+            starts_today = {p.station_id: 0 for p in dispatchable}
             # 日前开机需满足净负荷+按原始总负荷计的在线备用。
             # 水电只按本日逐时可用上限的最小值计容量；额定MW若无水量不能
             # 承担全天备用，否则会少开煤/气机组并产生虚假的缺供。
             day_end = min(t + 24, 8760)
             required = max(net[h] + reserve_ratio * load[h] for h in range(t, day_end))
             selected, capacity = [], 0.0
+            # 最短运行时间、停机爬坡和月最低开机台数先占用日前开机名额。
+            for plant in dispatchable:
+                sid = plant.station_id
+                active_units = plant.unit_count - plant.planned_maintenance_units[month]
+                if plant.monthly_min_online_units[month] > active_units:
+                    raise ValueError(f"电站{sid}月最小开机台数超过检修后可用台数")
+                ramp = plant.capacity_mw * plant.ramp_fraction_per_hour
+                forced = (sid in last_online and on_hours[sid] < plant.min_up_hours) or \
+                    previous_power[sid] > ramp + 1e-9 or \
+                    plant.monthly_min_online_units[month] > 0
+                if forced:
+                    selected.append(plant)
+                    capacity += (min(hydro_schedule[sid][h] for h in range(t, day_end))
+                                 if plant.technology == "hydro" else
+                                 plant.capacity_mw * active_units / plant.unit_count *
+                                 plant.monthly_max_fraction[month])
             for plant in dispatchable:
                 if capacity >= required:
                     break
+                if plant in selected:
+                    continue
+                # 刚停机的机组必须经过规定的最短停机时间才能重新启动。
+                if plant.station_id not in last_online and off_hours[plant.station_id] < plant.min_down_hours:
+                    continue
+                if (plant.station_id not in last_online and
+                        plant.capacity_mw * plant.min_fraction >
+                        plant.capacity_mw * plant.ramp_fraction_per_hour + 1e-9):
+                    continue  # 启动第一小时不能同时满足技术最小出力与启动爬坡。
                 selected.append(plant)
                 credit = (min(hydro_schedule[plant.station_id][h]
                               for h in range(t, day_end))
-                          if plant.technology == "hydro" else plant.capacity_mw)
+                          if plant.technology == "hydro" else
+                          plant.capacity_mw *
+                          (plant.unit_count - plant.planned_maintenance_units[month]) /
+                          plant.unit_count * plant.monthly_max_fraction[month])
                 capacity += credit
             online = tuple(selected)
+            newly_online = {p.station_id for p in online} - last_online
+            for p in online:
+                if p.station_id in newly_online:
+                    starts_today[p.station_id] += 1
+                    startup_count += 1
+                    if starts_today[p.station_id] > p.max_daily_starts:
+                        raise ValueError(f"电站{p.station_id}超过日最大启动次数")
+                    totals["variable_cost"] += p.startup_cost_yuan
+            last_online = {p.station_id for p in online}
         # 水电小时上限来自月水量分配曲线，且不超过实际剩余月预算。
         max_output = {}
+        min_output = {}
         for p in online:
+            sid = p.station_id
+            available_fraction = ((p.unit_count - p.planned_maintenance_units[month]) /
+                                  p.unit_count)
             if p.technology == "hydro":
-                budget = hydro_budget[p.station_id][month]
-                max_output[p.station_id] = min(p.capacity_mw, budget,
-                                               hydro_schedule[p.station_id][t])
+                budget = hydro_budget[sid][month]
+                physical_max = min(p.capacity_mw * available_fraction, budget,
+                                   hydro_schedule[sid][t])
             else:
-                max_output[p.station_id] = p.capacity_mw
-        min_output = {p.station_id: min(max_output[p.station_id], p.capacity_mw * p.min_fraction)
-                      for p in online}
+                physical_max = p.capacity_mw * available_fraction * p.monthly_max_fraction[month]
+            # 相邻小时出力上下限：Pprev−RD≤Pt≤Pprev+RU；月技术下限同时生效。
+            ramp = p.capacity_mw * p.ramp_fraction_per_hour
+            max_output[sid] = min(physical_max, previous_power[sid] + ramp)
+            technical_min = p.capacity_mw * available_fraction * max(
+                p.min_fraction, p.monthly_min_fraction[month])
+            min_output[sid] = max(technical_min, previous_power[sid] - ramp)
+            if min_output[sid] > max_output[sid] + 1e-7:
+                raise ValueError(f"电站{sid}第{t}小时爬坡与月最大/最小出力约束相冲突")
         must_run = sum(min_output.values())
         # 储能先吸纳“新能源+开机最小出力”带来的富余，再根据未来24h净负荷放电。
         surplus = max(0.0, must_run + wind_avail[t] + solar_avail[t] - load[t])
@@ -278,6 +344,27 @@ def simulate_project(case: ProjectCase, chromosome, keep_hourly=False,
             totals["variable_cost"] += power * p.variable_cost_yuan_per_mwh
             if p.technology == "hydro":
                 hydro_budget[p.station_id][month] = max(0.0, hydro_budget[p.station_id][month] - power)
+        # 逐站更新状态并核验停机小时从Pprev降至0同样受下降爬坡限制。
+        for p in dispatchable:
+            sid = p.station_id
+            power = generation.get(sid, 0.0)
+            ramp = p.capacity_mw * p.ramp_fraction_per_hour
+            max_ramp_residual = max(max_ramp_residual,
+                                    max(0.0, abs(power - previous_power[sid]) - ramp))
+            if sid in last_online:
+                on_hours[sid] += 1
+                off_hours[sid] = 0
+            else:
+                off_hours[sid] += 1
+                on_hours[sid] = 0
+            if keep_hourly:
+                commitment_rows.append((t, sid, p.technology, int(sid in last_online),
+                                        previous_power[sid], power, ramp,
+                                        p.capacity_mw * p.monthly_max_fraction[month],
+                                        p.capacity_mw * max(p.min_fraction,
+                                                            p.monthly_min_fraction[month]),
+                                        on_hours[sid], off_hours[sid]))
+            previous_power[sid] = power
         totals["variable_cost"] += sum(state.plant.variable_cost_yuan_per_mwh * power
                                        for state, power in zip(stores, storage_discharges))
         if keep_hourly:
@@ -298,7 +385,9 @@ def simulate_project(case: ProjectCase, chromosome, keep_hourly=False,
                     station_mwh[p.name] += actual * share
                     totals["variable_cost"] += actual * share * p.variable_cost_yuan_per_mwh
         reserve_need = load[t] * reserve_ratio
-        reserve_avail = sum(max_output[p.station_id] - generation[p.station_id] for p in online)
+        # 备用不得超过一小时内可爬升的出力余量。
+        reserve_avail = sum(min(max_output[p.station_id] - generation[p.station_id],
+                                p.capacity_mw * p.ramp_fraction_per_hour) for p in online)
         # 备用只计当时未使用的放电功率且须能持续1小时：
         # R_s=min(Pmax−Pdis, E_end×ηdis/1h)；正在充电的站不重复承担备用。
         # 否则同一MW会同时记为充电、放电备用，导致规划虚假可行。
@@ -337,4 +426,7 @@ def simulate_project(case: ProjectCase, chromosome, keep_hourly=False,
     totals["max_balance_residual_mw"] = peak_residual
     totals["storage_final_mwh"] = sum(s.energy_mwh for s in stores)
     totals["hydro_unused_budget_mwh"] = sum(sum(x) for x in hydro_budget.values())
-    return ProjectSimulation(tuple(rows), totals, station_mwh, tuple(storage_rows))
+    totals["startup_count"] = startup_count
+    totals["max_ramp_violation_mw"] = max_ramp_residual
+    return ProjectSimulation(tuple(rows), totals, station_mwh, tuple(storage_rows),
+                             tuple(commitment_rows), plants)

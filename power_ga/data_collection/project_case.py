@@ -17,6 +17,12 @@ TECHNOLOGIES = {300: "coal", 320: "gas", 373: "hydro", 380: "pumped",
 TECH_LABELS = {"coal": "煤电", "gas": "燃气", "hydro": "常规水电", "pumped": "抽水蓄能",
                "battery": "新型储能", "wind": "风电", "solar": "光伏", "biomass": "生物质"}
 
+# 无有效爬坡/启停字段时使用公开技术基准的试算值；单位为额定MW每小时。
+# 2%/min煤电=1.2额定MW/h，5%/min燃气联合循环=3.0额定MW/h。
+# 生物质参照常规蒸汽机组仅作试算；水电小时级暂取1.0额定MW/h。
+OPERATING_DEFAULTS = {"coal": (1.2, 24, 12), "gas": (3.0, 6, 8),
+                      "biomass": (1.2, 24, 12), "hydro": (1.0, 0, 0)}
+
 
 @dataclass(frozen=True)
 class CasePlant:
@@ -33,6 +39,18 @@ class CasePlant:
     charge_ratio: float = 1.0
     roundtrip_efficiency: float = 1.0
     hydro_monthly_factor: Tuple[float, ...] = (1.0,) * 12
+    # 以下参数控制常规机组逐时可行域；缺项由导入器写入试算默认值。
+    ramp_fraction_per_hour: float = 1.0
+    min_up_hours: int = 0
+    min_down_hours: int = 0
+    max_daily_starts: int = 24
+    startup_cost_yuan: float = 0.0
+    monthly_max_fraction: Tuple[float, ...] = (1.0,) * 12
+    monthly_min_fraction: Tuple[float, ...] = (0.0,) * 12
+    monthly_min_online_units: Tuple[int, ...] = (0,) * 12
+    planned_maintenance_units: Tuple[int, ...] = (0,) * 12
+    unit_count: int = 1
+    parameter_source: str = "合成显式参数"
 
 
 @dataclass(frozen=True)
@@ -219,7 +237,38 @@ def _hydro_factors(book):
     return factors
 
 
-def _make_plant(station_id, record, mw, year_folder, curves, costs, hydro_factors, candidate):
+def _year_applies(encoded, year):
+    """有效年份=起始年×100+持续年数；0表示所有年份有效。"""
+    value = int(encoded or 0)
+    if value == 0:
+        return True
+    first, count = divmod(value, 100)
+    return first <= year < first + count
+
+
+def _operating_records(book, year):
+    """按机组ID收集有效月约束/检修及特性；源表优先于试算默认值。"""
+    feature = {int(row[0]): row for row in _records(book, "特性表")}
+    limits, maintenance = {}, {}
+    for row in _records(book, "机组约束"):
+        if int(row[2] or 0) != 1 or not _year_applies(row[4], year):
+            continue
+        key = (int(row[3]), int(row[5]))
+        if key in limits:
+            raise ValueError(f"机组{key[0]}月约束类型{key[1]}存在重复有效记录")
+        limits[key] = tuple(float(value or 0) for value in row[6:18])
+    for row in _records(book, "检修表"):
+        if int(row[2] or 0) != 1 or not _year_applies(row[4], year):
+            continue
+        unit_id = int(row[3])
+        if unit_id in maintenance:
+            raise ValueError(f"机组{unit_id}存在重复有效检修计划")
+        maintenance[unit_id] = tuple(int(value or 0) for value in row[6:18])
+    return feature, limits, maintenance
+
+
+def _make_plant(station_id, record, mw, year_folder, curves, costs, hydro_factors, candidate,
+                operating=None):
     """只在储能类型读取效率/时长；风光的“储能比率”是另一物理含义。"""
     station, unit, _ = record
     kind = TECHNOLOGIES[int(station[4])]
@@ -240,13 +289,67 @@ def _make_plant(station_id, record, mw, year_folder, curves, costs, hydro_factor
     if not math.isfinite(min_fraction) or not 0 <= min_fraction <= 1:
         raise ValueError(f"常规机组最小出力比例越界：{station[1]}")
     row = costs[kind]
-    return CasePlant(station_id, str(station[1]), kind, mw,
+    plant = CasePlant(station_id, str(station[1]), kind, mw,
                      min_fraction,
                      float(row["variable_yuan_per_mwh"]),
                      mw * float(row["annual_capital_yuan_per_mw"]) if candidate else 0.0,
                      profile, storage_hours,
                      charge_ratio,
                      efficiency, hydro_factors.get(station_id, (1.0,) * 12))
+    if kind not in OPERATING_DEFAULTS:
+        return plant
+    default_ramp, default_up, default_down = OPERATING_DEFAULTS[kind]
+    unit_id = int(unit[0] or 0)
+    per_unit_mw = float(unit[4] or mw)
+    exact_count = mw / per_unit_mw
+    count = round(exact_count)
+    if count < 1 or abs(exact_count - count) > 1e-7:
+        raise ValueError(f"电站{station_id}装机分段不是完整机组台数，不能保证启停可行")
+    features, monthly, maintenance = operating or ({}, {}, {})
+    source_notes = ["公开技术基准试算"]
+    raw_ramp = float(unit[23] or 0) if len(unit) > 23 else 0.0
+    # 输入表1.0/min是原软件的“无约束”占位值；有效的0<r<1转换成每小时。
+    if 0 < raw_ramp < 1:
+        ramp = 60 * raw_ramp
+        source_notes.append("机组表有效爬坡率")
+    elif raw_ramp in (0, 1):
+        ramp = default_ramp
+        source_notes.append("爬坡缺项或占位时采用试算默认值")
+    else:
+        raise ValueError(f"电站{station_id}爬坡率应在[0,1]内")
+    up, down, max_starts, startup_cost = default_up, default_down, 1, 0.0
+    feature_id = int(unit[10] or 0) if len(unit) > 10 else 0
+    if kind == "gas" and feature_id in features:
+        row = features[feature_id]
+        encoded = int(row[4] or 0)
+        if encoded:
+            max_starts, rest = divmod(encoded, 10000)
+            down, up = divmod(rest, 100)
+            if max_starts < 1 or up + down > 24:
+                raise ValueError(f"机组{unit_id}启停编码无效")
+            source_notes.append("特性表启停时长/次数")
+        startup_cost = float(row[5] or 0) * 10000 * count  # 万元/台次→元/站次。
+    max_month = monthly.get((unit_id, 0), (1.0,) * 12)
+    min_month = monthly.get((unit_id, 1), (0.0,) * 12)
+    online_month = monthly.get((unit_id, 2), (0.0,) * 12)
+    repair_month = maintenance.get(unit_id, (0,) * 12)
+    if any(not 0 <= lo <= hi <= 1 for lo, hi in zip(min_month, max_month)):
+        raise ValueError(f"机组{unit_id}逐月最大/最小出力率冲突")
+    if any(value < 0 or value > count for value in repair_month):
+        raise ValueError(f"机组{unit_id}检修台数越界")
+    if any(value < 0 or value > count or value != int(value) for value in online_month):
+        raise ValueError(f"机组{unit_id}月最小开机台数越界")
+    if (unit_id, 0) in monthly or (unit_id, 1) in monthly or (unit_id, 2) in monthly:
+        source_notes.append("机组约束逐月值")
+    if unit_id in maintenance:
+        source_notes.append("检修表逐月台数")
+    return replace(plant, ramp_fraction_per_hour=ramp, min_up_hours=up,
+                   min_down_hours=down, max_daily_starts=max_starts,
+                   startup_cost_yuan=startup_cost,
+                   monthly_max_fraction=tuple(max_month), monthly_min_fraction=tuple(min_month),
+                   monthly_min_online_units=tuple(map(int, online_month)),
+                   planned_maintenance_units=tuple(repair_month), unit_count=count,
+                   parameter_source="；".join(source_notes))
 
 
 def load_project_case(source_folder: Path, target_year: int, cost_path: Path) -> ProjectCase:
@@ -264,6 +367,7 @@ def load_project_case(source_folder: Path, target_year: int, cost_path: Path) ->
     base = _station_units(base_book)
     target = _station_units(target_book)
     hydro = _hydro_factors(target_book)
+    operating = _operating_records(target_book, target_year)
     curves, existing, candidates, warnings = {}, [], [], []
     for station_id, record in sorted(target.items()):
         base_mw = base.get(station_id, (None, None, 0))[2]
@@ -271,11 +375,35 @@ def load_project_case(source_folder: Path, target_year: int, cost_path: Path) ->
         if base_mw > target_mw + 1e-6:
             warnings.append(f"电站{station_id}目标年容量低于基年；存量按目标年容量截取")
         keep = min(base_mw, target_mw)
+        # 先解析目标年完整机组组，再按真实整台机组分割存量/候选；月检修台数
+        # 先分配给存量，剩余再分配候选，避免同一台检修在两个容量段重复扣减。
+        whole = _make_plant(station_id, record, target_mw, target_folder, curves,
+                            costs, hydro, True, operating)
+        unit_mw = float(record[1][4])
+        keep_units = round(keep / unit_mw)
+        added_units = round((target_mw - keep) / unit_mw)
+        if abs(keep / unit_mw - keep_units) > 1e-7 or \
+                abs((target_mw - keep) / unit_mw - added_units) > 1e-7:
+            raise ValueError(f"电站{station_id}基年/目标年容量差不是完整机组台数")
         if keep > 0:
-            existing.append(_make_plant(station_id, record, keep, target_folder, curves, costs, hydro, False))
+            existing.append(replace(
+                whole, capacity_mw=keep, annual_cost_yuan=0.0, unit_count=keep_units,
+                startup_cost_yuan=whole.startup_cost_yuan * keep_units / whole.unit_count,
+                planned_maintenance_units=tuple(min(v, keep_units)
+                                                for v in whole.planned_maintenance_units),
+                monthly_min_online_units=tuple(min(v, keep_units)
+                                               for v in whole.monthly_min_online_units)))
         increment = max(0.0, target_mw - keep)
         if increment > 0:
-            candidates.append(_make_plant(station_id, record, increment, target_folder, curves, costs, hydro, True))
+            candidates.append(replace(
+                whole, capacity_mw=increment,
+                annual_cost_yuan=whole.annual_cost_yuan * increment / target_mw,
+                unit_count=added_units,
+                startup_cost_yuan=whole.startup_cost_yuan * added_units / whole.unit_count,
+                planned_maintenance_units=tuple(max(0, v - min(v, keep_units))
+                                                for v in whole.planned_maintenance_units),
+                monthly_min_online_units=tuple(max(0, v - min(v, keep_units))
+                                               for v in whole.monthly_min_online_units)))
     # 按有效电站所属系统ID选择当前单区域；外部系统也可能自带负荷曲线。
     # 单区域引擎不会把其他系统的曲线误并入本地区负荷，更不推断网架潮流。
     system_ids = {int(record[0][2]) for record in target.values()}
@@ -357,7 +485,13 @@ def align_stage_case(final_case: ProjectCase, year_case: ProjectCase) -> Project
                     plant.capacity_mw * plant.min_fraction) / capacity)
         existing_by_id[plant.station_id] = replace(
             old, capacity_mw=capacity, min_fraction=minimum,
-            annual_cost_yuan=old.annual_cost_yuan + plant.annual_cost_yuan)
+            annual_cost_yuan=old.annual_cost_yuan + plant.annual_cost_yuan,
+            unit_count=old.unit_count + plant.unit_count,
+            startup_cost_yuan=old.startup_cost_yuan + plant.startup_cost_yuan,
+            planned_maintenance_units=tuple(a + b for a, b in zip(
+                old.planned_maintenance_units, plant.planned_maintenance_units)),
+            monthly_min_online_units=tuple(a + b for a, b in zip(
+                old.monthly_min_online_units, plant.monthly_min_online_units)))
     if source_only:
         warnings.append(f"{year_case.target_year}年度有{len(source_only)}个非终期候选增量；"
                         "按当年源库计划外生投运并计入年化费用，不属于终期可选状态位")

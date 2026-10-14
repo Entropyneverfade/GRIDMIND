@@ -61,6 +61,27 @@ $$
 
 程序以二分法求 $\lambda_m$，若正净负荷时段不足以消纳月预算，差额作为未用预算报告；整月 $w_t=0$ 时 $h_t^{target}=0$，不强制耗尽水量。实际出力同时受小时容量和月剩余预算限制。The monthly budget is an upper bound: if positive net demand cannot use it, the remainder is reported as unused water rather than forced generation. This transparent allocation is not a hydraulic cascade optimization.
 
+## 4a. 常规机组启停与爬坡 / Conventional-unit chronology
+
+令 $u_{g,t}\in\{0,1\}$ 表示站级聚合开机状态，$p_{g,t}$ 为该站逐小时平均 MW，$\bar P_g$ 为额定 MW，$a_{g,m}=(n_g-v_{g,m})/n_g$ 为扣除月计划检修台数 $v$ 后的可用比例，$m(t)$ 是小时所属月。在线下界与上界为
+
+$$
+u_{g,t}\,a_{g,m}\bar P_g\max(\mu_g,\mu_{g,m}^{min})
+\le p_{g,t}\le
+u_{g,t}\,a_{g,m}\bar P_g\mu_{g,m}^{max}.
+$$
+
+与上一小时的出力变化还要满足
+
+$$
+-r_g\bar P_g\le p_{g,t}-p_{g,t-1}\le r_g\bar P_g,
+\qquad p_{g,-1}=0.
+$$
+
+若 $u$ 从1变0，先前连续开机时长须不少于 $T_g^{up}$；从0变1，先前连续停机时长须不少于 $T_g^{down}$。日内启动次数 $\sum_{t\in d}\max(0,u_{g,t}-u_{g,t-1})\le N_g^{start}$。当前调度只在日初改变 $u$，所以这是一条保守的站级可行规则，不是逐台机组组合优化。若最小出力、月容量、检修和爬坡相互矛盾，输入被拒绝；若供需不足或过剩，功率平衡用缺供/过剩显式记录并使规划状态不可行。The archived per-station hourly table permits an independent residual check.
+
+源表爬坡率有效值 $0<r^{minute}<1$ 按 $r_g=60r^{minute}$ 换算；无有效值时公开试算取煤电 $r_g=1.2$、$T^{up/down}=24/12$ h，燃气联合循环 $r_g=3.0$、$6/8$ h，依据[美国能源部技术能力表A-1](https://www.energy.gov/sites/prod/files/2017/01/f34/Principles%20for%20Increasing%20the%20Accessibility%20and%20Transparency%20of%20Power%20System%20Planning.pdf)。这些数值是跨地区技术基准，不能代替本地机组实测；生物质与常规水电的缺项另列类比假设。All effective values and their source labels are exported in the operating-parameter snapshot.
+
 ## 5. 规划可行性 / Planning feasibility
 
 当前项目评价要求年度缺供、物理过剩、在线备用不足分别不超过数值容差，并要求常规可信装机满足输入的规划备用率：

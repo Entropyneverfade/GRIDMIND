@@ -20,7 +20,7 @@ GRIDMIND 的目标是可更换输入、费用和搜索策略的电力系统规�
 
 公开合成案例由 [`synthetic_eight_type.py`](../examples/synthetic_eight_type.py) 用固定随机种子生成八类电站与 8760 小时曲线；[`synthetic_dynamic_case.py`](../examples/synthetic_dynamic_case.py) 组成连续年份并导出每年全部状态费用、建设路径、GA 历史和审计 JSON；[`verify_dynamic_case.py`](../examples/verify_dynamic_case.py) 从合成输入独立复算被选状态，检查费用、逐时功率、储能状态及月水量上限。分区示例的四张 CSV 和相应输出由 [`synthetic_network_case.py`](../examples/synthetic_network_case.py) 生成，正式 CSV 读取与守恒校验在 [`network_case.py`](../power_ga/operation_simulation/network_case.py)。运行步骤见 3.7 节及[使用指南](USER_GUIDE.md)。同一结果应记录输入文件/数值曲线指纹、软件版本、GA 随机种子与代数设置、求解器许可和输出路径；真实项目的 `run_manifest.json` 保存相关源工作簿及阶段输入 SHA-256，合成分区运行清单保存四张 CSV 的 SHA-256。
 
-本研究边界仍包括：没有完整非线性交流潮流和电压无功约束，没有随机停运抽样得到的 EENS/LOLE，没有库容—水头—上下游耦合的梯级水电调度，没有全年全局最优机组组合、启停爬坡及 N−1 校验。它们是平台后续研究任务，不能由现有确定性缺供量、额定备用或分区线性有功潮流推断。The platform exposes auditable methods and inputs; the published case artifacts are synthetic.
+本研究边界仍包括：没有完整非线性交流潮流和电压无功约束，没有随机停运抽样得到的 EENS/LOLE，没有库容—水头—上下游耦合的梯级水电调度，没有逐台机组与亚小时启停爬坡、全年全局最优机组组合及 N−1 校验。当前主运行器已有站级小时爬坡、跨日最短开停、逐月机组出力及计划检修边界；它们只能证明所归档确定性轨迹满足已建模的约束，不能由此推断完整系统动态安全。The platform exposes auditable methods and inputs; the published case artifacts are synthetic.
 
 ## 第二章：GA算法和动态规划算法 / 2. GA and DP
 
@@ -82,7 +82,9 @@ $$p^{\rm hyd,plan}_{g,h}=\min(\bar P_g,\lambda w_h),\qquad \sum_{h\in m}p^{\rm h
 
 左式对 $\lambda$ 单调，代码以能够使正权重小时达到额定功率的上界开始，二分 60 次；水量是**可用上限**，零净负荷下允许未用水。运行到小时 $h$ 时还取 $\bar p_{g,h}=\min(\bar P_g,B^{\rm remain}_{g,m},p^{\rm hyd,plan}_{g,h})$，发电后从该月剩余预算扣除实际 MWh。因此不会因后续日窗口改变而超出月预算；这只是按净负荷形状分水的规则，没有水库库容、流量、水头、上下游时滞和级联约束。
 
-每个 24 小时日首重算一次在线机组集合。令在线备用比例 $\rho=0.03$，该日需要覆盖的功率为 $D_d^{\rm commit}=\max_{h\in d}(N_h+\rho L_h)$。从费用升序表依次选机组，直到其容量信用之和达到 $D_d^{\rm commit}$ 或已经无机组可选。煤、气、生物质信用用额定 MW；水电只用本日预定出力的**最小小时值** $\min_{h\in d}p^{\rm hyd,plan}_{g,h}$，不能把无水可发的额定 MW 当作全天备用。代码不求解二元启停优化，也未施加最短开停机时间、爬坡或启动费用。小时内在线常规站的出力上界是上述 $\bar p_{g,h}$（非水电用额定 MW），下界是 $\underline p_{g,h}=\min(\bar p_{g,h},\bar P_g\mu_g)$，$\mu_g$ 为最小出力比例；$M_h=\sum_{g\in\text{在线}}\underline p_{g,h}$ 为必发出力。
+每个 24 小时日首重算一次在线机组集合。令在线备用比例 $\rho=0.03$，该日需要覆盖的功率为 $D_d^{\rm commit}=\max_{h\in d}(N_h+\rho L_h)$。先保留尚未满足最短运行时间或不能在一小时内降至零的站，再从费用升序表补开机组；刚停机而未达到最短停机时长者不得启动。煤、气、生物质按检修后可用 MW 与月最大出力率取容量信用；水电只用本日预定出力的**最小小时值** $\min_{h\in d}p^{\rm hyd,plan}_{g,h}$。这仍是每日一次的站级启发式开机，不是逐台机组组合优化。对额定功率 $\bar P_g$、小时爬坡比例 $r_g$、上一小时出力 $p_{g,h-1}$，逐时上界为 $\bar p_{g,h}=\min(P^{\rm month,max}_{g,h},p_{g,h-1}+r_g\bar P_g)$，下界为 $\underline p_{g,h}=\max(P^{\rm month,min}_{g,h},p_{g,h-1}-r_g\bar P_g)$；因此 $|p_{g,h}-p_{g,h-1}|\le r_g\bar P_g$。在线备用取该小时仍可增加的容量与一小时爬坡能力之较小值；若物理下界大于上界，输入约束冲突并报错。
+
+**启停参数与来源。** 月最小/最大出力率、最小开机台数与月检修台数优先读取有效源表；燃气类非零特性编码按“日最大启动次数×10000＋最短停机小时×100＋最短运行小时”解析。机组表的爬坡率若为严格 $0<r<1$，从额定比例/分钟换算为 $60r$ 额定比例/小时；字段 $1.0$ 是原输入规范的无约束占位值，不能据它证明动态可行。缺少有效爬坡和启停时，采用[美国能源部公开技术能力表A-1](https://www.energy.gov/sites/prod/files/2017/01/f34/Principles%20for%20Increasing%20the%20Accessibility%20and%20Transparency%20of%20Power%20System%20Planning.pdf)的试算参数：煤电爬坡2%/min、最短开/停24/12h；燃气联合循环5%/min、6/8h。生物质按蒸汽机组类比，常规水电小时爬坡比例暂取1.0，这两项是明确的模型假设，不是当地实测。所有生效值与来源存入“机组运行参数”表；燃气源表启动成本按万元/台次换算成人民币元/站次并计入运行费用。The source fields take precedence; fallback values are labeled scenario assumptions.
 
 ### 3.3 储能、弃风弃光、放电与常规机组增发的严格顺序
 
@@ -112,7 +114,7 @@ $$\sum_{g\in\rm conventional}p_{g,h}+W_h+S_h+\sum_sp^{\rm dis}_{s,h}+u_h=L_h+\su
 
 $o_h=\max(0,\text{缺供计入后的供给}-L_h-\sum_sp^{\rm ch}_{s,h})$ 是风光已经完全弃尽后仍因必发出力而无法消纳的过剩，与弃风弃光 $Q_h$ **不是一回事**。全年各项电量用 $\sum_hP_h\Delta t$ 汇总；最大功率残差为 $\max_h|\epsilon_h^P|$，储能残差按上式逐站逐时核对。运行器返回缺供 MWh、缺供小时数、在线备用不足 MWh、物理过剩 MWh、剩余水量预算和年末储能库存。评价器依 2.2 节条件判定状态可行，不能因为代数收敛或总体电量平衡就忽略逐时短缺。
 
-**逐时图中的竖直跃变如何解释：** 图形以每小时平均功率作为阶梯值，小时边界画成竖线；竖线不表示真实机组能在零时间完成调节。当前三年纯合成案例的末年，第3日13:00→14:00（全年小时61→62）负荷仅从85.42降至85.09 MW，而光伏可用量从49.72降至42.27 MW，实际光伏出力从45.05降至32.15 MW，抽蓄与电池合计充电从18.28降至0.93 MW；光伏弃电同时从4.67增至10.12 MW。逐时功率平衡残差约为零，故这处跳变是输入风光变化与“先满足最小出力、储能吸纳剩余”的小时决策共同造成，并非绘图平滑错误。合成风光还含固定种子的逐小时随机扰动。**物理边界：** 当前单区调度没有逐机组爬坡、最小开停机时间及储能功率变化率约束；若要判断机组能否完成跃变，需给出并检验 $-R_g^{\downarrow}\Delta t\le p_{g,h}-p_{g,h-1}\le R_g^{\uparrow}\Delta t$ 及启停状态。本版没有这些输入，不能把代数平衡等同于动态可行。Hourly steps represent interval averages; ramp feasibility is not yet certified.
+**逐时图中的竖直跃变如何解释：** 图形以每小时平均功率作为阶梯值，小时边界画成竖线；竖线不表示真实机组能在零时间完成调节。历史纯合成案例的末年，第3日13:00→14:00（全年小时61→62）负荷仅从85.42降至85.09 MW，而光伏可用量从49.72降至42.27 MW，实际光伏出力从45.05降至32.15 MW，抽蓄与电池合计充电从18.28降至0.93 MW；光伏弃电同时从4.67增至10.12 MW。该图对应约束升级前的归档演示，不能作为新版动态约束验收。新版单区运行按上式逐站检查小时爬坡与跨日启停，并输出状态轨迹供独立复核；图形仍会因风光、负荷与储能在小时尺度变化而出现台阶。煤电公开基准爬坡2%/分钟相当于每小时1.2倍额定功率，因此一小时图上从零到额定的跳变仍可能满足**小时模型**，不代表亚小时动态已经得到验证。The current engine audits hourly station-level transitions; sub-hourly dynamics remain outside scope.
 
 ### 3.5 独立分区运行：两种传输计算
 
@@ -182,7 +184,44 @@ python -m examples.verify_dynamic_case --output synthetic_full
 
 ## 第五章：结果分析 / 5. Results and prior comparison
 
-更新后的公开三年度算例里，Bellman、Gurobi及固定种子GA均选择累计状态 $(0,2,2)$，折现总费用约 **368.565 百万元**。768个状态各评价8760小时；对选中方案再独立回放，最大功率平衡残差 $2.84\times10^{-14}$ MW、储能状态残差 $3.55\times10^{-15}$ MWh，月水电预算超额0 MWh。本次同解不代表有限预算GA普遍可找到全局最优。The final year has positive output or discharge from all eight technology groups.
+**约束升级后的新算例（0.2.14）。** 同一个固定种子纯合成八类机组数据库重新运行单年度 GA（种群12、上限12代、种子1）：中选位 `00010000`，费用 153,089,145.12 元/年，确定性缺供与在线备用缺口均为0，最大功率平衡残差 $1.87\times10^{-14}$ MW。新版完整 [8760小时汇总工作簿](../examples/results/v0.2.14/ga_annual_summary.xlsx)、[逐站机组轨迹](../examples/results/v0.2.14/unit_commitment_hourly.csv)、[生效参数及来源](../examples/results/v0.2.14/operating_parameters.csv) 和[可复现审计](../examples/results/v0.2.14/synthetic_audit.json) 均由同一次模拟生成；下列图片均由 **Python/Matplotlib** 从该存档重绘，具体后端不冒充 Origin。The new fixture certifies its implemented hourly constraints only; it is not an annual optimal unit-commitment proof.
+
+![约束升级后GA收敛](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.14/ga_convergence.png)
+
+![约束升级后day_182运行图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.14/day_182.png)
+
+![约束升级后week_27运行图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.14/week_27.png)
+
+![约束升级后year_1运行图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.14/year_1.png)
+
+![约束升级后custom_137_193运行图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.14/custom_137_193.png)
+
+![约束升级后第1月运行图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.14/month_01.png)
+
+![约束升级后第2月运行图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.14/month_02.png)
+
+![约束升级后第3月运行图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.14/month_03.png)
+
+![约束升级后第4月运行图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.14/month_04.png)
+
+![约束升级后第5月运行图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.14/month_05.png)
+
+![约束升级后第6月运行图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.14/month_06.png)
+
+![约束升级后第7月运行图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.14/month_07.png)
+
+![约束升级后第8月运行图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.14/month_08.png)
+
+![约束升级后第9月运行图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.14/month_09.png)
+
+![约束升级后第10月运行图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.14/month_10.png)
+
+![约束升级后第11月运行图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.14/month_11.png)
+
+![约束升级后第12月运行图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.14/month_12.png)
+
+
+以下三年度 GA/DP 对照是 **0.2.8 约束升级前的历史合成基线**，保留用于说明年度路径算法，尚未在新增机组动态约束下重跑，因此不能与上面的0.2.14单年度费用直接比较。该历史算例中 Bellman、Gurobi及固定种子GA均选择累计状态 $(0,2,2)$，折现总费用约 **368.565 百万元**。768个状态各评价8760小时；选中路径独立回放的最大功率平衡残差 $2.84\times10^{-14}$ MW、储能状态残差 $3.55\times10^{-15}$ MWh，月水电预算超额0 MWh。本次同解不代表有限预算GA普遍可找到全局最优。The legacy final year has positive output or discharge from all eight technology groups.
 
 末年本地负荷829,822.658 MWh、缺供0；风电实际112,305.782 MWh、弃风2,040.106 MWh；光伏实际123,961.086 MWh、弃光6,947.400 MWh。新规则重算后**弃风与弃光同时出现**。公开合成结果的工作簿、阶段对照和独立验收文件见[结果目录](../examples/results/v0.2.8/)。The updated curtailment values and figures come from one hourly archive.
 
@@ -304,4 +343,4 @@ DP阶段费用 / View：[原图](https://raw.githubusercontent.com/Entropyneverf
 
 **与先验结果比较。** 本机对照表逐项检查负荷、外送、机组发电、储能及弃电。先验场景与项目库原始负荷不同，因此先做固定GA建设方案、只替换先验8760小时本地负荷及外送的控制实验；该方案出现缺供。随后将目标年全部候选装机投运，在相同逐时需求下，全年风光可用总电量与先验表吻合，但发电、弃电、水电及储能仍有差异。差异可与运行规则有关，仍需核对逐日/逐站风光曲线、水文、机组组合和储能初态后才可定量归因。本报告不公布真实项目数值、图片或可还原元数据。The comparison aligns demand and annual renewable availability, while the remaining technical assumptions still require audit.
 
-复现公开案例：`python -m examples.synthetic_dynamic_case --output synthetic_full --full-horizon`，然后 `python -m examples.verify_dynamic_case --output synthetic_full`；分区试验：`python -m examples.synthetic_network_case --output synthetic_network`。使用说明见[USER_GUIDE](USER_GUIDE.md)。尚未实现真实分区参数接入GA/DP、跨时段储能属性库存、概率EENS/LOLE、N−1、完整水电级联和机组启停。The verified boundaries are part of the result.
+复现公开案例：`python -m examples.synthetic_dynamic_case --output synthetic_full --full-horizon`，然后 `python -m examples.verify_dynamic_case --output synthetic_full`；分区试验：`python -m examples.synthetic_network_case --output synthetic_network`。使用说明见[USER_GUIDE](USER_GUIDE.md)。尚未实现真实分区参数接入GA/DP、跨时段储能属性库存、概率EENS/LOLE、N−1、完整水电级联和逐台机组启停优化。The verified boundaries are part of the result.

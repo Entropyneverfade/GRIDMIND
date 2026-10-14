@@ -1,5 +1,11 @@
 # Development progress / 开发进度
 
+## 2026-10-14 — Stage 0.2.14 / 站级机组动态约束与默认参数审计
+
+- 单区项目运行新增站级小时爬坡、跨日最短开停、日最大启动次数、月最大/最小出力、月最小开机台数、逐月计划检修及燃气源表启停编码/启动成本。参数缺项使用标明来源的公开试算值；源表占位爬坡1.0不被误用为物理验证。The source parameter takes precedence and every fallback is labeled in the exported snapshot.
+- 运行工作簿新增“机组逐时状态”和“机组运行参数”；纯合成单年度 GA 已重跑并发布逐站CSV、综合工作簿及12张月图。Synthetic independent replay checks 43,800 station-hours with zero hourly ramp and monthly-bound residual; maximum power balance residual is approximately $1.42\times10^{-14}$ MW.
+- 67项本地合成测试通过，包含先失败后修复的爬坡、跨日最短开停、月最大出力反例。Daily station-level commitment is a conservative heuristic; unit-level, sub-hourly, automatic annual maintenance scheduling and network-coupled planning remain open.
+
 ## 2026-10-14 — Stage 0.2.13 / 数据库分区识别与日期滚轮缩放
 
 - 查看器沿结果清单读取兼容输入工作簿的系统、负荷、节点、电站关系，自动列出有负荷或有效电站的分区；根系统和占位系统排除。若本次只有汇总逐时表，分区名标注尚无逐区结果，不能用汇总曲线冒充。The catalog reflects workbook metadata while plots require region-specific archived power data.

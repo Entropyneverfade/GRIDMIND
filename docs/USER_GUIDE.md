@@ -46,7 +46,7 @@ Gurobi 在 DP 模式中优化**年度状态路径**并与 Bellman 递推交叉�
 
 “查看规划图”在 GA 存档中显示费用收敛与种群状态；在 DP 存档中显示年度费用、累计投运状态，以及同口径 GA 可行最优费用相对 DP/Gurobi 下界的收敛曲线。“打开结果存档”展示表格与独立图片文件夹；“载入已有存档”复用先前结果。The planning chart automatically follows the saved algorithm type and displays the paired comparison when available.
 
-单年结果的 `tables/全年规划运行结果汇总.xlsx` 含年度、电站、8760小时、储能逐时、逐日、逐月、GA和口径说明；DP另有 `tables/动态规划阶段汇总.xlsx`，逐年列出状态、费用与同一阶段费用表上的GA/DP对照。“逐年GA与DP”页和 `ga_dp_stage_comparison.csv` 列出两个算法各年的状态、可行性、年度及折现费用；`ga_dp_comparison.csv` 为总目标对照，`multiyear_ga_history.csv` 为GA逐代记录。年度源库出现终期候选位之外的计划项目时，工作簿另有“年度外生计划”页和 `exogenous_projects.csv`，逐年列出容量及年化费用。图与表分目录保存。CSV与 `run_manifest.json` 供复算、恢复和哈希核验。The exogenous-project sheet is present only when needed; deterministic shortage is not probabilistic EENS or LOLE.
+单年结果的 `tables/全年规划运行结果汇总.xlsx` 含年度、电站、8760小时、储能逐时、机组逐时状态、机组运行参数、逐日、逐月、GA和口径说明；`unit_commitment_hourly.csv` 与 `operating_parameters.csv` 可单独做逐站爬坡/启停核验。参数表记录源表有效值或公开技术基准试算默认值的来源；源表爬坡值1.0属无约束占位，新版为试算物理检验改用有标注的默认值。DP另有 `tables/动态规划阶段汇总.xlsx`，逐年列出状态、费用与同一阶段费用表上的GA/DP对照。“逐年GA与DP”页和 `ga_dp_stage_comparison.csv` 列出两个算法各年的状态、可行性、年度及折现费用；`ga_dp_comparison.csv` 为总目标对照，`multiyear_ga_history.csv` 为GA逐代记录。年度源库出现终期候选位之外的计划项目时，工作簿另有“年度外生计划”页和 `exogenous_projects.csv`，逐年列出容量及年化费用。图与表分目录保存。CSV与 `run_manifest.json` 供复算、恢复和哈希核验。The source-labeled assumptions are editable in code and should be calibrated before engineering use.
 
 ## 命令行 / CLI
 

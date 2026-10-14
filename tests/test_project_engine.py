@@ -20,6 +20,74 @@ from power_ga.result_output.project_report import write_project_report
 class ProjectEngineTests(unittest.TestCase):
     """使用完全合成的输入，不依赖或复制任何项目数据库。"""
 
+    def test_hourly_ramp_limits_supply_and_preserves_balance(self):
+        """启动及跨小时均按 |P_t-P_{t-1}|≤0.1P额定；供给不足须显式计缺供。"""
+        coal = CasePlant(1, "RampUnit", "coal", 100, 0, 300, 0,
+                         ramp_fraction_per_hour=0.1)
+        load = (20.0, 80.0) + (0.0,) * 8758
+        case = ProjectCase(2025, 2029, (coal,), (), load, (0.0,) * 8760,
+                           0, 0, (), "", "")
+        run = simulate_project(case, (), keep_hourly=True, reserve_ratio=0)
+        self.assertLessEqual(run.hourly[0].coal_mw, 10.0 + 1e-9)
+        self.assertLessEqual(run.hourly[1].coal_mw - run.hourly[0].coal_mw, 10.0 + 1e-9)
+        self.assertGreater(run.summary["unserved"], 0)
+        self.assertLess(run.summary["max_balance_residual_mw"], 1e-7)
+
+    def test_minimum_up_and_down_times_cross_day_boundary(self):
+        """跨日保留开停状态；不能为平衡而突破最短运行/停机小时。"""
+        up = CasePlant(1, "MustStayOn", "coal", 100, 0.5, 300, 0,
+                       min_up_hours=48)
+        load = (80.0,) * 24 + (0.0,) * 24 + (80.0,) * 24 + (0.0,) * (8760 - 72)
+        case = ProjectCase(2025, 2029, (up,), (), load, (0.0,) * 8760,
+                           0, 0, (), "", "")
+        run = simulate_project(case, (), keep_hourly=True, reserve_ratio=0)
+        self.assertGreaterEqual(run.hourly[24].coal_mw, 50.0 - 1e-9)
+        self.assertGreaterEqual(run.hourly[24].overgeneration_mw, 50.0 - 1e-9)
+        down = CasePlant(1, "MustStayOff", "coal", 100, 0, 300, 0,
+                         min_down_hours=48)
+        case = ProjectCase(2025, 2029, (down,), (), load, (0.0,) * 8760,
+                           0, 0, (), "", "")
+        run = simulate_project(case, (), keep_hourly=True, reserve_ratio=0)
+        self.assertEqual(run.hourly[48].coal_mw, 0)
+        self.assertGreater(run.hourly[48].unserved_mw, 0)
+
+    def test_monthly_unit_maximum_is_enforced(self):
+        """机组月最大出力率0.4应限制一月所有小时，不能按全年额定容量调度。"""
+        coal = CasePlant(1, "Seasonal", "coal", 100, 0, 300, 0,
+                         monthly_max_fraction=(0.4,) + (1.0,) * 11)
+        case = ProjectCase(2025, 2029, (coal,), (), (50.0,) * 8760,
+                           (0.0,) * 8760, 0, 0, (), "", "")
+        run = simulate_project(case, (), keep_hourly=True, reserve_ratio=0)
+        self.assertLessEqual(max(h.coal_mw for h in run.hourly[:744]), 40 + 1e-9)
+        self.assertGreater(run.summary["unserved"], 0)
+        self.assertLess(run.summary["max_balance_residual_mw"], 1e-7)
+
+    def test_operating_defaults_and_source_constraints_are_distinguished(self):
+        """源表有效值优先；1.0/min占位爬坡改用有出处的试算默认值并记录来源。"""
+        station = [None] * 16
+        station[1], station[4] = "SyntheticGas", 320
+        unit = [None] * 24
+        unit[0], unit[4], unit[5], unit[7], unit[10], unit[23] = 7, 50, 2, 0.2, 9, 1.0
+        feature = [None] * 6
+        feature[0], feature[4], feature[5] = 9, 10606, 1.5
+        max_month = (0.8,) + (1.0,) * 11
+        operating = ({9: feature}, {(7, 0): max_month}, {7: (1,) + (0,) * 11})
+        costs = {"gas": {"variable_yuan_per_mwh": "400",
+                         "annual_capital_yuan_per_mw": "0"}}
+        plant = _make_plant(1, (station, unit, 100), 100, Path("."), {}, costs,
+                            {}, False, operating)
+        self.assertEqual((plant.ramp_fraction_per_hour, plant.min_up_hours,
+                          plant.min_down_hours, plant.max_daily_starts), (3.0, 6, 6, 1))
+        self.assertEqual(plant.startup_cost_yuan, 30000)
+        self.assertEqual(plant.monthly_max_fraction[0], 0.8)
+        self.assertEqual(plant.planned_maintenance_units[0], 1)
+        self.assertIn("试算默认值", plant.parameter_source)
+        unit[23] = 0.01  # 0.01额定MW/min对应0.6额定MW/h。
+        plant = _make_plant(1, (station, unit, 100), 100, Path("."), {}, costs,
+                            {}, False, operating)
+        self.assertAlmostEqual(plant.ramp_fraction_per_hour, 0.6)
+        self.assertIn("机组表有效爬坡率", plant.parameter_source)
+
     def test_wind_and_solar_share_surplus_curtailment(self):
         """风光均可用时按可用MW分摊弃电，且 Q风+Q光=需弃总量。"""
         wind, solar = project_engine._allocate_curtailment(80.0, 120.0, 50.0)

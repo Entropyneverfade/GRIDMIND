@@ -21,6 +21,9 @@ HOUR_LABELS = ["小时", "本地负荷MW", "外送MW", "总需求MW", "煤电MW"
                "储能期末库存MWh", "火电合计MW", "缺供MW", "备用需求MW",
                "可用备用MW", "备用缺口MW", "过剩MW", "平衡残差MW"]
 
+COMMITMENT_LABELS = ["小时", "电站ID", "技术", "开机状态", "上小时出力MW", "本小时出力MW",
+                     "允许变化MW/h", "月最大出力MW", "月最小出力MW", "连续开机h", "连续停机h"]
+
 
 def _hash_file(path):
     """输入快照哈希使同名结果可追溯到当时数据库版本。"""
@@ -69,6 +72,23 @@ def write_project_report(case, result, simulation, output_dir: Path, make_figure
                    ["hour", "station", "technology", "charge_mw", "discharge_mw",
                     "energy_start_mwh", "energy_end_mwh", "soc_end", "state_residual_mwh"],
                    simulation.storage_hourly)
+    if simulation.commitment_hourly:
+        # 保留逐站出力和状态，便于独立核验相邻小时爬坡与跨日启停约束。
+        _write_csv(tables / "unit_commitment_hourly.csv", COMMITMENT_LABELS,
+                   simulation.commitment_hourly)
+    parameter_header = ["电站ID", "技术", "容量MW", "机组台数", "基础最小出力率", "爬坡比例每小时", "最短开机h",
+                        "最短停机h", "日最大启动次数", "每站启动成本元", "逐月最大出力率",
+                        "逐月最小出力率", "逐月最小开机台数", "逐月检修台数", "参数来源"]
+    parameter_rows = [[p.station_id, p.technology, p.capacity_mw, p.unit_count,
+                       p.min_fraction,
+                       p.ramp_fraction_per_hour, p.min_up_hours, p.min_down_hours,
+                       p.max_daily_starts, p.startup_cost_yuan,
+                       ",".join(map(str, p.monthly_max_fraction)),
+                       ",".join(map(str, p.monthly_min_fraction)),
+                       ",".join(map(str, p.monthly_min_online_units)),
+                       ",".join(map(str, p.planned_maintenance_units)), p.parameter_source]
+                      for p in simulation.operating_plants]
+    _write_csv(tables / "operating_parameters.csv", parameter_header, parameter_rows)
     project_rows = (["存量含外生计划" if p.annual_cost_yuan > 0 else "存量",
                      p.station_id, p.name, TECH_LABELS[p.technology], p.capacity_mw,
                      1, p.annual_cost_yuan]
@@ -98,6 +118,8 @@ def write_project_report(case, result, simulation, output_dir: Path, make_figure
                 ["缺供电量", summary["unserved"], "MWh"],
                 ["缺供小时数", summary["shortage_hours"], "h"],
                 ["在线备用不足积分", summary["reserve_shortfall"], "MW·h"],
+                ["机组启动次数", summary["startup_count"], "次"],
+                ["最大爬坡约束残差", summary["max_ramp_violation_mw"], "MW"],
                 ["最大功率平衡残差", summary["max_balance_residual_mw"], "MW"],
                 ["水电未用月预算", summary["hydro_unused_budget_mwh"], "MWh"]]
     for kind in ("coal", "gas", "hydro", "biomass", "wind", "solar"):
@@ -117,6 +139,9 @@ def write_project_report(case, result, simulation, output_dir: Path, make_figure
     if simulation.storage_hourly:
         _add_sheet(book, "储能逐时", ["小时", "电站", "技术", "充电MW", "放电MW", "期初MWh",
                                   "期末MWh", "期末SOC", "状态残差MWh"], simulation.storage_hourly, 6)
+    if simulation.commitment_hourly:
+        _add_sheet(book, "机组逐时状态", COMMITMENT_LABELS, simulation.commitment_hourly, 6)
+    _add_sheet(book, "机组运行参数", parameter_header, parameter_rows, 5)
     day_header, day_rows = _periods(hourly, [24] * 365)
     _add_sheet(book, "逐日统计", day_header, day_rows, 4)
     # 闰年输入也固定省略2月29日；报表与水电月预算采用同一8760小时边界。
@@ -137,6 +162,7 @@ def write_project_report(case, result, simulation, output_dir: Path, make_figure
          "库内电站均挂在节点1；本版不宣称完成省内交流潮流约束"],
         ["水电", "M1–M12水文相对系数×0.42试算利用率×容量×月小时数；月间不借用"],
         ["储能", "库容=额定MW×储能时长h；往返效率按平方根分解，年初SOC=0"],
+        ["机组约束", "小时级爬坡、跨日最短开停时间、逐月最大/最小出力率与检修台数；缺项使用参数快照中标注的试算默认值"],
         ["成本", "随算例公开的合成试算成本，不是项目报价" if synthetic else
          "官方美国技术基准经7.0试算汇率及7%贴现率换算；燃料费为可编辑情景假设"],
         ["可靠性", "风光/储能规划可信容量保守取0；不等于ELCC或概率可靠性认证"],

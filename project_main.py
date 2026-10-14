@@ -34,9 +34,14 @@ def _stage_input_hash(case):
         for value in (plant.capacity_mw, plant.min_fraction,
                       plant.variable_cost_yuan_per_mwh, plant.annual_cost_yuan,
                       plant.storage_hours, plant.charge_ratio,
-                      plant.roundtrip_efficiency):
+                      plant.roundtrip_efficiency, plant.ramp_fraction_per_hour,
+                      plant.min_up_hours, plant.min_down_hours,
+                      plant.max_daily_starts, plant.startup_cost_yuan,
+                      plant.unit_count):
             digest.update(struct.pack("<d", float(value)))
-        for value in plant.profile + plant.hydro_monthly_factor:
+        for value in (plant.profile + plant.hydro_monthly_factor +
+                      plant.monthly_max_fraction + plant.monthly_min_fraction +
+                      plant.monthly_min_online_units + plant.planned_maintenance_units):
             digest.update(struct.pack("<d", float(value)))
     return digest.hexdigest()
 
