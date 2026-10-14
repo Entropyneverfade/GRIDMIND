@@ -1,0 +1,21 @@
+{
+  "model": "electricity_sector_proportional_attributes",
+  "solver": "gurobi",
+  "hours": 8760,
+  "zones": 4,
+  "max_power_balance_residual_mw": 3.552713678800501e-14,
+  "max_carbon_balance_residual_t": 2.842170943040401e-14,
+  "max_sulfur_balance_residual_kg": 1.4210854715202004e-14,
+  "max_renewable_balance_residual_mwh": 4.263256414560601e-14,
+  "input_sha256": {
+    "zones.csv": "7ff50f78e1a5fda9874ed0a84bdb59a4a78b9cc1a027a0fca9b8cc0d7fc21393",
+    "generators.csv": "70a2ee75dd0f50b8582bba5beeceb8700831771715a12a80709cc0a7ff475d3a",
+    "links.csv": "74b318393618c84e20987ca6d3819132c864c671f2923a94e43093d82a3f959b",
+    "hourly.csv": "08f5c762c9ff67f78cc3e0e5d0f3eb1576b2b68da762159deddf1a46a2354187"
+  },
+  "limitations": [
+    "固定储能计划及放电属性由输入提供，未优化或审核储能库存",
+    "交流为无损线性有功潮流，无电压无功和N-1",
+    "物理属性分摊不是绿证所有权或经济全产业链MRIO"
+  ]
+}

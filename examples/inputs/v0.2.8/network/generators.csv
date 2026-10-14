@@ -1,0 +1,6 @@
+﻿name,zone,technology,minimum_mw,maximum_mw,cost_yuan_per_mwh,carbon_t_per_mwh,sulfur_kg_per_mwh,renewable_fraction
+晋煤_合成,山西,coal,30,90,240,0.82,0.3,0
+华北气_合成,华北,gas,0,55,460,0.39,0.03,0
+华中水_合成,华中,hydro,0,37,55,0,0,1
+江苏气_合成,江苏,gas,0,33,470,0.39,0.03,0
+晋生物质_合成,山西,biomass,0,5,180,0.08,0.05,1

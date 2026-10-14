@@ -1,5 +1,16 @@
 # Development progress / 开发进度
 
+## 2026-10-14 — Stage 0.2.8 / 分区CSV应用入口与属性归档
+
+- 单区项目运行的削峰放电改为小额定MW储能站先行，同容量按站ID；合成反例验证输入行大站在前仍由小站先供2MW，逐时功率/SOC残差保持容差内。周图的弃风、弃光分别使用密反/正斜线，薄弃电小时加真实MW定位标注；图例及面积均不改写原数据。Small rated-power storage gets peak-shaving priority; dense opposite hatches and value callouts clarify sparse curtailment.
+- 交互堆叠图去掉逐小时黑色多边形边框，纵轴限制主刻度数、贴近实际充电负轴，避免旧窗口出现灰色块与左轴黑线；同一合成周窗口经后台实测重画约0.03–0.04秒、全年窗口约0.18秒（本机单次测量，非跨硬件承诺）。The revised viewer keeps full hourly values and redraws only the selected time span.
+- 项目运行图增加 Python/Matplotlib 静态后端；无 Origin 的电脑可导出 PNG/PDF、源 CSV、再绘制脚本，Origin 仍可选。水电月预算二分保留原式，数组化使单个合成8760小时运行本机从约0.267秒降至0.102秒；此基准不代表所有项目的总耗时。Python plotting is a selectable, tested fallback.
+- 分区综合工作簿改为流式写入以降低8760×分区数的峰值内存；机组技术与抽蓄/电池分开输出。The output keeps four auditable sheets and separate technology columns.
+
+- EXE增加分区CSV选择、公开合成输入生成、启发式或Gurobi LP模式和逐区8760小时缩放查看；输出独立的综合工作簿、逐时CSV、联络线表与输入哈希。The zonal functions now have a desktop and batch input/output path.
+- 四区纯合成8760小时案例的电力、碳、SO₂、新能源逐时守恒均通过；24小时两区已知答案同时覆盖启发式与LP，交流边在启发式入口被拒绝。All values and emission factors in the sample are synthetic; connectivity directions alone are public evidence.
+- 分区入口仍独立于GA/DP，固定储能计划尚未核对SOC；本阶段未宣称网络约束规划或完整经济MRIO。Network-constrained planning and storage-coupled zonal optimization remain future work.
+
 ## 2026-10-14 — Stage 0.2.7 / 风光弃电、分区试验与统一报告
 
 - 项目运行的富余风光按可用份额分摊弃电，三年度纯合成案例重跑、独立物理回算后同时出现弃风和弃光；12张月图、五种缩放图及Origin GA/DP图重新生成。The synthetic GA/DP case and figures were regenerated after the curtailment rule change.

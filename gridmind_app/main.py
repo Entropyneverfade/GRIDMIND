@@ -12,7 +12,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-APP_VERSION = "0.2.7"
+APP_VERSION = "0.2.8"
 
 # 直接运行本文件或单文件EXE时，让窗口入口可导入同级算法包。
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -38,6 +38,16 @@ def prepare_cost_file():
     if not target.exists():
         shutil.copy2(resource("input/project_costs.csv"), target)
     return target
+
+
+def default_figure_backend():
+    """只查 Windows COM 注册表，不启动 Origin；缺少 Origin 时自动选 Python。"""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, "Origin.ApplicationSI"):
+            return "origin"
+    except (OSError, ImportError):
+        return "python"
 
 
 def show_ga_window(result_dir):
@@ -175,7 +185,7 @@ def show_dp_window(result_dir):
 def launch_app(smoke=False):
     """主窗口通过后台线程计算，Tk只负责文件选择、进度和查看结果。"""
     import tkinter as tk
-    from tkinter import filedialog, messagebox, ttk
+    from tkinter import filedialog, messagebox, simpledialog, ttk
     import matplotlib
 
     matplotlib.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimSun", "DejaVu Sans"]
@@ -212,6 +222,10 @@ def launch_app(smoke=False):
     stage_source = tk.StringVar(value="年度源库")
     previous_factor = tk.StringVar(value="0.95")
     figures = tk.BooleanVar(value=True)
+    figure_backend = tk.StringVar(value="Origin" if default_figure_backend() == "origin"
+                                  else "Python")
+    network_case_folder = tk.StringVar()
+    network_solver = tk.StringVar(value="Gurobi LP")
     status = tk.StringVar(value="请选择项目数据库，然后开始计算")
     last_result = {"path": None}
     messages = queue.Queue()
@@ -240,7 +254,10 @@ def launch_app(smoke=False):
     for label, var in (("种群", population), ("最大代数", generations), ("随机种子", seed)):
         ttk.Label(options, text=label).pack(side="left")
         ttk.Entry(options, textvariable=var, width=7).pack(side="left", padx=(5, 17))
-    ttk.Checkbutton(options, text="生成Origin图件", variable=figures).pack(side="left", padx=6)
+    ttk.Checkbutton(options, text="生成图件", variable=figures).pack(side="left", padx=6)
+    ttk.Label(options, text="绘图后端").pack(side="left", padx=(8, 0))
+    ttk.Combobox(options, textvariable=figure_backend, values=("Origin", "Python"),
+                 state="readonly", width=8).pack(side="left", padx=5)
     # 动态规划默认取独立年度曲线；系数情景只在用户选中时参与计算。
     method_options = ttk.Frame(frame)
     method_options.grid(row=5, column=0, columnspan=3, sticky="w", pady=(0, 8))
@@ -257,6 +274,8 @@ def launch_app(smoke=False):
     ttk.Entry(method_options, textvariable=previous_factor, width=7).pack(side="left", padx=5)
     controls = ttk.Frame(frame)
     controls.grid(row=6, column=0, columnspan=3, sticky="w", pady=(8, 14))
+    plan_controls = ttk.Frame(controls)
+    plan_controls.pack(anchor="w")
 
     def run(plan):
         """验证路径与代数；计算线程写队列，不直接操作Tk控件。"""
@@ -282,9 +301,11 @@ def launch_app(smoke=False):
         destination = user_folder().parent / "GRIDMIND_results" / f"scenario_{y}_{datetime.now():%Y%m%d_%H%M%S}"
         start_plan.configure(state="disabled")
         start_sim.configure(state="disabled")
+        network_button.configure(state="disabled")
         status.set("正在读取数据…")
 
         make_figures = bool(figures.get())  # Tk变量只在主线程取值。
+        selected_backend = figure_backend.get().lower()
         method = "dp" if algorithm.get().startswith("动态") else "ga"
         stage_mode = "source" if stage_source.get() == "年度源库" else "scaled"
         horizon = "full" if "全规划年" in algorithm.get() else "pair"
@@ -296,22 +317,87 @@ def launch_app(smoke=False):
                     plan=plan, figures=make_figures, population=pop, generations=gen,
                     seed=random_seed, progress=lambda message: messages.put(("status", message)),
                     algorithm=method, previous_load_factor=factor,
-                    stage_input_mode=stage_mode, planning_horizon=horizon)
+                    stage_input_mode=stage_mode, planning_horizon=horizon,
+                    figure_backend=selected_backend)
                 messages.put(("done", (folder, result, simulation.summary)))
             except Exception as error:
                 messages.put(("error", str(error)))
         threading.Thread(target=worker, daemon=True).start()
 
-    start_plan = ttk.Button(controls, text="运行所选规划与全年模拟", command=lambda: run(True))
+    start_plan = ttk.Button(plan_controls, text="运行所选规划与全年模拟", command=lambda: run(True))
     start_plan.pack(side="left", padx=(0, 10))
-    start_sim = ttk.Button(controls, text="仅模拟存量系统", command=lambda: run(False))
+    start_sim = ttk.Button(plan_controls, text="仅模拟存量系统", command=lambda: run(False))
     start_sim.pack(side="left")
+
+    # 分区CSV是独立试验入口；用户须显式提供线路限额、区域需求及属性因子。
+    network_controls = ttk.Frame(controls)
+    network_controls.pack(anchor="w", pady=(10, 0))
+    ttk.Label(network_controls, text="分区CSV").pack(side="left")
+    ttk.Entry(network_controls, textvariable=network_case_folder, width=43).pack(side="left", padx=5)
+    ttk.Button(network_controls, text="浏览…", command=lambda: browse(network_case_folder, True)).pack(side="left")
+    ttk.Combobox(network_controls, textvariable=network_solver,
+                 values=("Gurobi LP", "启发式（可控通道）"), state="readonly",
+                 width=18).pack(side="left", padx=6)
+
+    def make_network_demo():
+        """仅生成公开固定种子四区教学输入；不读取项目数据库。"""
+        from examples.synthetic_network_case import write_case_input
+
+        folder = user_folder() / f"network_demo_{datetime.now():%Y%m%d_%H%M%S}"
+        try:
+            write_case_input(folder)
+            network_case_folder.set(str(folder))
+            status.set("已生成合成分区输入；请选择Gurobi LP运行交流示意边")
+        except Exception as error:
+            messagebox.showerror("演示输入失败", str(error), parent=root)
+
+    def run_network():
+        """后台执行8760小时分区流和属性追踪，结果与项目规划分开存档。"""
+        from power_ga.operation_simulation.network_case import run_network_case
+
+        source_dir = Path(network_case_folder.get())
+        if not source_dir.is_dir():
+            messagebox.showerror("输入错误", "请选择包含四个分区CSV的目录", parent=root)
+            return
+        method = "gurobi" if network_solver.get() == "Gurobi LP" else "heuristic"
+        destination = user_folder().parent / "GRIDMIND_results" / f"network_{datetime.now():%Y%m%d_%H%M%S}"
+        for button in (start_plan, start_sim, network_button):
+            button.configure(state="disabled")
+        status.set("正在读取分区CSV…")
+
+        def worker():
+            """耗时求解在后台线程；Tk控件只由主线程的poll更新。"""
+            try:
+                audit = run_network_case(source_dir, destination, solver=method,
+                                         progress=lambda note: messages.put(("status", note)))
+                messages.put(("network_done", (destination, audit)))
+            except Exception as error:
+                messages.put(("error", str(error)))
+        threading.Thread(target=worker, daemon=True).start()
+
+    ttk.Button(network_controls, text="生成合成输入", command=make_network_demo).pack(side="left")
+    network_button = ttk.Button(network_controls, text="运行分区", command=run_network)
+    network_button.pack(side="left", padx=6)
 
     def open_viewer():
         """查看器作为独立窗口打开，可按日周月年或任意小时区间缩放。"""
         if last_result["path"]:
-            args = ([sys.executable, "--viewer", str(last_result["path"])] if getattr(sys, "frozen", False) else
-                    [sys.executable, str(Path(__file__).resolve()), "--viewer", str(last_result["path"])])
+            folder = Path(last_result["path"])
+            if (folder / "tables" / "hourly_network.csv").is_file():
+                with (folder / "tables" / "zone_summary.csv").open(encoding="utf-8-sig", newline="") as stream:
+                    zones = [row["zone"] for row in csv.DictReader(stream)]
+                selected = simpledialog.askstring("选择分区", "输入要查看的分区：" + "、".join(zones),
+                                                  initialvalue=zones[0], parent=root)
+                if selected is None:
+                    return
+                if selected not in zones:
+                    messagebox.showerror("分区错误", "请输入汇总表中的精确分区名称", parent=root)
+                    return
+                flag = ["--network-viewer", str(folder), selected]
+            else:
+                flag = ["--viewer", str(folder)]
+            args = ([sys.executable, *flag] if getattr(sys, "frozen", False) else
+                    [sys.executable, str(Path(__file__).resolve()), *flag])
             subprocess.Popen(args)
 
     def open_ga():
@@ -334,7 +420,9 @@ def launch_app(smoke=False):
         if not selected:
             return
         folder = Path(selected)
-        if not (folder / "run_manifest.json").is_file() or not (folder / "tables" / "hourly_dispatch.csv").is_file():
+        standard = (folder / "tables" / "hourly_dispatch.csv").is_file()
+        zonal = (folder / "tables" / "hourly_network.csv").is_file()
+        if not (folder / "run_manifest.json").is_file() or not (standard or zonal):
             messagebox.showerror("存档无效", "所选文件夹缺少运行清单或8760小时表", parent=root)
             return
         last_result["path"] = folder
@@ -376,14 +464,27 @@ def launch_app(smoke=False):
                     last_result["path"] = folder
                     start_plan.configure(state="normal")
                     start_sim.configure(state="normal")
+                    network_button.configure(state="normal")
                     view_button.configure(state="normal")
                     folder_button.configure(state="normal")
                     ga_button.configure(state="normal" if ((Path(folder) / "tables" / "history.csv").is_file() or
                                                        (Path(folder) / "tables" / "dynamic_stages.csv").is_file()) else "disabled")
                     status.set(f"完成 · 缺供 {summary['unserved']:.3f} MWh · {folder}")
+                elif kind == "network_done":
+                    folder, audit = payload
+                    last_result["path"] = folder
+                    start_plan.configure(state="normal")
+                    start_sim.configure(state="normal")
+                    network_button.configure(state="normal")
+                    view_button.configure(state="normal")
+                    ga_button.configure(state="disabled")
+                    folder_button.configure(state="normal")
+                    status.set(f"分区运行完成 · {audit['hours']}小时 · 最大功率残差"
+                               f" {audit['max_power_balance_residual_mw']:.2e} MW · {folder}")
                 else:
                     start_plan.configure(state="normal")
                     start_sim.configure(state="normal")
+                    network_button.configure(state="normal")
                     status.set("运行失败：" + payload)
                     messagebox.showerror("计算失败", payload, parent=root)
         except queue.Empty:
@@ -403,22 +504,35 @@ def main():
     """EXE自身既是主窗口，也可启动独立运行图和遗传图窗口。"""
     parser = argparse.ArgumentParser(description="GRIDMIND桌面应用")
     parser.add_argument("--viewer", type=Path)
+    parser.add_argument("--network-viewer", nargs=2, metavar=("RESULT_DIR", "ZONE"))
     parser.add_argument("--export-demo-views", nargs=2, type=Path,
                         metavar=("RESULT_DIR", "IMAGE_DIR"),
                         help="用同一窗口绘图函数导出日、周、月、年和自定义时段PNG")
+    parser.add_argument("--export-network-views", nargs=3,
+                        metavar=("RESULT_DIR", "ZONE", "IMAGE_DIR"),
+                        help="按分区导出交互窗口同款日/周/月/年缩放预览")
     parser.add_argument("--export-monthly-views", nargs=2, type=Path,
                         metavar=("RESULT_DIR", "IMAGE_DIR"),
                         help="导出12张自然月图和标志时段事件CSV")
+    parser.add_argument("--render-project-python", type=Path,
+                        help="从已有项目运行表格在figures_python重绘，无需Origin")
     parser.add_argument("--ga", type=Path)
     parser.add_argument("--dp", type=Path)
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--pdf-fallback", nargs=2, metavar=("PNG", "PDF"), help=argparse.SUPPRESS)
     parser.add_argument("--batch-source", type=Path, help="后台批处理使用的兼容项目数据库目录")
+    parser.add_argument("--batch-network-source", type=Path,
+                        help="运行四CSV分区案例，含8760小时流量与碳硫属性")
+    parser.add_argument("--batch-network-output", type=Path)
+    parser.add_argument("--batch-network-solver", choices=("heuristic", "gurobi"),
+                        default="gurobi")
     parser.add_argument("--batch-costs", type=Path, help="后台批处理使用的可编辑成本CSV")
     parser.add_argument("--batch-output", type=Path, help="后台批处理结果目录")
     parser.add_argument("--batch-year", type=int, default=2029)
     parser.add_argument("--batch-simulate-only", action="store_true")
     parser.add_argument("--batch-skip-figures", action="store_true")
+    parser.add_argument("--batch-figure-backend", choices=("auto", "origin", "python"),
+                        default="auto", help="无 Origin 时 auto 自动使用 Python 绘图")
     parser.add_argument("--batch-algorithm", choices=("ga", "dp"), default="ga")
     # 批处理与窗口共用遗传参数；DP模式也用它们执行同阶段费用表上的GA对照。
     parser.add_argument("--batch-population", type=int, default=12)
@@ -465,6 +579,20 @@ def main():
             (args.batch_synthetic_dynamic / "batch_error.txt").write_text(
                 traceback.format_exc(), encoding="utf-8")
             raise SystemExit(1)
+    elif args.batch_network_source:
+        from power_ga.operation_simulation.network_case import run_network_case
+
+        output = (args.batch_network_output or user_folder().parent / "GRIDMIND_results" /
+                  f"network_{datetime.now():%Y%m%d_%H%M%S}")
+        try:
+            run_network_case(args.batch_network_source, output,
+                             solver=args.batch_network_solver)
+        except Exception as error:
+            import traceback
+            output.mkdir(parents=True, exist_ok=True)
+            # 冻结包缺依赖时保留完整调用栈，便于精确定位而不暴露输入内容。
+            (output / "batch_error.txt").write_text(traceback.format_exc(), encoding="utf-8")
+            raise SystemExit(1)
     elif args.batch_source:
         # 同一EXE的后台入口用于无人值守复核；计算仍走前后端共享的execute。
         # 失败写入本次结果目录并返回非零状态，不弹出PyInstaller错误窗口。
@@ -482,10 +610,26 @@ def main():
                     seed=args.batch_seed,
                     previous_load_factor=args.batch_previous_load_factor,
                     stage_input_mode=args.batch_stage_input_mode,
-                    planning_horizon=args.batch_planning_horizon)
+                    planning_horizon=args.batch_planning_horizon,
+                    figure_backend=(default_figure_backend()
+                                    if args.batch_figure_backend == "auto" else
+                                    args.batch_figure_backend))
         except Exception as error:
             output.mkdir(parents=True, exist_ok=True)
             (output / "batch_error.txt").write_text(str(error), encoding="utf-8")
+            raise SystemExit(1)
+    elif args.render_project_python:
+        from power_ga.result_output.python_plot import render_project_archive_python
+
+        try:
+            render_project_archive_python(args.render_project_python,
+                                          figure_folder="figures_python")
+        except Exception:
+            # 无控制台EXE也要把失败原因留下，便于定位缺字体/缺表/冻结导入问题。
+            import traceback
+
+            (args.render_project_python / "figure_render_error.txt").write_text(
+                traceback.format_exc(), encoding="utf-8")
             raise SystemExit(1)
     elif args.export_monthly_views:
         # 月图与交互窗口共用绘制和事件选取，输出表按相同小时边界存档。
@@ -493,12 +637,22 @@ def main():
 
         result_dir, image_dir = args.export_monthly_views
         export_monthly_views(load_hours(result_dir), image_dir)
+    elif args.export_network_views:
+        from power_ga.result_output.viewer import export_predefined_views, load_network_hours
+
+        result_dir, zone, image_dir = args.export_network_views
+        export_predefined_views(load_network_hours(Path(result_dir), zone), Path(image_dir))
     elif args.export_demo_views:
         # 接受任意完整8760小时结果；公开演示仅选用单独生成的合成算例。
         from power_ga.result_output.viewer import export_predefined_views, load_hours
 
         result_dir, image_dir = args.export_demo_views
         export_predefined_views(load_hours(result_dir), image_dir)
+    elif args.network_viewer:
+        from power_ga.result_output.viewer import launch, load_network_hours
+
+        folder, zone = args.network_viewer
+        launch(load_network_hours(Path(folder), zone))
     elif args.viewer:
         from power_ga.result_output.viewer import launch, load_hours
         import matplotlib

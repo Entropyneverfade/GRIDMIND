@@ -60,6 +60,29 @@ class ProjectEngineTests(unittest.TestCase):
         self.assertTrue(all(h.storage_charge_mw * h.storage_discharge_mw < 1e-9
                             for h in run.hourly))
 
+    def test_small_storage_dispatches_first_for_peak_shaving(self):
+        """两站都已充电且削峰只需2MW时，5MW小站先放电，20MW大站待机。"""
+        wind_profile = (1.0,) + (0.0,) * 8759
+        plants = (CasePlant(1, "Coal", "coal", 100, 0, 300, 0),
+                  # 故意把大站列在前面，证明规则不依赖输入行次序。
+                  CasePlant(2, "Large", "battery", 20, 0, 0, 0,
+                            (), 2, 1, 0.81),
+                  CasePlant(3, "Small", "battery", 5, 0, 0, 0,
+                            (), 2, 1, 0.81),
+                  CasePlant(4, "Wind", "wind", 120, 0, 0, 0, wind_profile))
+        load = (80.0,) + (102.0,) * 8759
+        case = ProjectCase(2025, 2029, plants, (), load, (0.0,) * 8760,
+                           0.0, 0, (), "", "")
+        run = simulate_project(case, (), keep_hourly=True, reserve_ratio=0.0)
+        charged = {row[1]: row[3] for row in run.storage_hourly if row[0] == 0}
+        discharged = {row[1]: row[4] for row in run.storage_hourly if row[0] == 1}
+        self.assertGreater(charged["Large"], 0.0)
+        self.assertGreater(charged["Small"], 0.0)
+        self.assertAlmostEqual(discharged["Small"], 2.0)
+        self.assertAlmostEqual(discharged["Large"], 0.0)
+        self.assertLess(run.summary["max_balance_residual_mw"], 1e-7)
+        self.assertLess(max(abs(row[-1]) for row in run.storage_hourly), 1e-7)
+
     def test_project_ga_matches_complete_two_bit_enumeration(self):
         """2位共4方案可穷举：只有新增煤电才满足可信容量，电池不应凭额定MW代替容量信用。"""
         existing = (CasePlant(1, "ExistingCoal", "coal", 90, 0, 300, 0),)
@@ -108,6 +131,26 @@ class ProjectEngineTests(unittest.TestCase):
         self.assertAlmostEqual(target[31 * 24], 5.0, places=7)
         self.assertAlmostEqual(sum(target), 5.0, places=7)
 
+    def test_vector_hydro_matches_scalar_equation(self):
+        """数组加速后仍满足原式 p=min(Pmax,λw) 与每月水量上限。"""
+        weights = [float((hour * 17) % 73) for hour in range(8760)]
+        budgets = [5000.0] * 12
+        output = _hydro_target(weights, 20.0, budgets)
+        first = 0
+        for size in PLANNING_MONTH_HOURS:
+            part = weights[first:first + size]
+            low, high = 0.0, max(1.0, 20.0 / min(v for v in part if v > 0))
+            for _ in range(60):
+                middle = (low + high) / 2
+                if sum(min(20.0, middle * value) for value in part) < 5000.0:
+                    low = middle
+                else:
+                    high = middle
+            self.assertLess(max(abs(actual - min(20.0, high * value))
+                                for actual, value in zip(output[first:first + size], part)), 1e-10)
+            self.assertLessEqual(sum(output[first:first + size]), 5000.0 + 1e-7)
+            first += size
+
     def test_leap_year_uses_8760_hour_planning_calendar(self):
         """2028年省略2月29日；水电运行、逐月工作簿和窗口共用365日边界。"""
         self.assertEqual(sum(PLANNING_MONTH_HOURS), 8760)
@@ -135,6 +178,31 @@ class ProjectEngineTests(unittest.TestCase):
             # 2月起止为744..1415，3月从1416开始；Σ月负荷应等于全年负荷。
             self.assertEqual((rows[2][1], rows[2][2], rows[3][1]), (744, 1415, 1416))
             self.assertAlmostEqual(sum(row[6] for row in rows[1:]), 5.0 * 8760)
+
+    def test_python_figures_need_no_origin_and_keep_hourly_values(self):
+        """无 Origin 后端从已存 CSV 生成峰日/8760图，并能独立重绘。"""
+        from power_ga.result_output.python_plot import render_archived_figure
+
+        with TemporaryDirectory() as folder:
+            root = Path(folder)
+            for year in (2025, 2029):
+                (root / str(year)).mkdir()
+                (root / str(year) / f"{year}.xlsx").write_bytes(b"synthetic-only")
+            (root / "cost.csv").write_text("synthetic-cost", encoding="utf-8")
+            plants = (CasePlant(1, "Coal", "coal", 10, 0, 300, 0),)
+            case = ProjectCase(2025, 2029, plants, (), (6.0,) * 8760,
+                               (0.0,) * 8760, 0.0, 0, (), str(root), str(root / "cost.csv"))
+            run = simulate_project(case, (), keep_hourly=True)
+            report = root / "report"
+            write_project_report(case, None, run, report, figure_backend="python")
+            for chart in ("02_峰荷日电力平衡", "05_全年8760电力平衡"):
+                figure = report / "figures" / chart
+                self.assertTrue((figure / "figure.png").is_file())
+                self.assertTrue((figure / "figure.pdf").is_file())
+                render_archived_figure(figure, "dispatch_peak" if chart.startswith("02")
+                                       else "dispatch_year")
+                self.assertTrue((figure / "renderer.json").is_file())
+            self.assertLess(run.summary["max_balance_residual_mw"], 1e-7)
 
     def test_leap_curve_rejects_misaligned_day_labels(self):
         """8760个值仍可能把闰日错放进2月；导入前需核对日期顺序。"""

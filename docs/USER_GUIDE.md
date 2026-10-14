@@ -2,7 +2,7 @@
 
 ## 安装与启动 / Install and launch
 
-Windows 用户双击 `GRIDMIND.exe`；若旧版根目录程序仍在运行，可直接双击构建出的 `GRIDMIND_版本号.exe`。源码用户安装 `requirements.txt` 后运行 `python gridmind_app/main.py`。源码动态规划需额外安装 `requirements-gurobi.txt`；EXE已打包求解器 Python 绑定。两种方式都需本机有效 Gurobi 许可，许可文件不随程序发布。Static native figures require Origin, while the interactive viewer uses Matplotlib. If Origin is unavailable, uncheck “生成Origin图件”.
+Windows 用户双击 `GRIDMIND.exe`；若旧版根目录程序仍在运行，可直接双击构建出的 `GRIDMIND_版本号.exe`。源码用户安装 `requirements.txt` 后运行 `python gridmind_app/main.py`。源码动态规划需额外安装 `requirements-gurobi.txt`；EXE已打包求解器 Python 绑定。两种方式都需本机有效 Gurobi 许可，许可文件不随程序发布。绘图控件可选 Origin 原生工程或 Python/Matplotlib；未检测到 Origin 注册时默认 Python，仍生成 PNG/PDF、图源 CSV 与再绘制脚本。The Python option works on computers without Origin and matches the dispatch data, palette, axes and time bounds.
 
 ## 输入 / Inputs
 
@@ -10,6 +10,8 @@ Windows 用户双击 `GRIDMIND.exe`；若旧版根目录程序仍在运行，可
 2. 选择目标年、种群、代数与随机种子。单年遗传算法使用这些参数。Choose the target year and GA controls.
 3. 在“规划方法”切换“遗传算法”“动态规划（双年度）”或“动态规划（全规划年）”。双年度读取目标年前一年和目标年；全规划年读取基年之后至目标年的每个年度库。每年既有有效装机、负荷、外送、风光及水文取本年度源库，终期候选项目设计容量和状态位保持一致。仅某年度出现的非终期计划增量按该年度外生投运、计入年化费用，不占终期候选位。源库曲线是规划输入，不能自动当成历史实测。双年度还可选“系数情景”，用负荷系数（默认0.95）构造前一年负荷并复用目标年天气；全规划年只能使用逐年源库。The full-horizon option reads each annual source; the scaled two-year scenario cannot stand in for multiple annual datasets.
 4. 点击“运行所选规划与全年模拟”。“仅模拟基年存量”只计算运行，不搜索新建方案。Click the planning button or run the existing system only.
+
+勾选“生成图件”并在旁边选择绘图后端：Origin 产生原生可编辑工程，Python 较快且不依赖 Origin。交互窗口始终由 Python 读取已归档逐时 CSV；批处理可用 `--batch-figure-backend python`，已有项目结果可用 `--render-project-python 结果目录` 在独立 `figures_python` 文件夹补图。Archived results can be redrawn without recomputing 8,760 hours.
 
 动态规划当前最多允许8个候选位，目标年须至少比基年晚2年，贴现率默认7%。每阶段费用使用已投运候选年化费、当年外生计划年化费和全年运行费。超出上限时给出错误，不截断候选集。全规划年会执行“阶段数×2^候选位数”次全年评价，请为计算留出时间。The cap prevents accidental exponential runs and never silently drops projects.
 
@@ -19,9 +21,20 @@ Windows 用户双击 `GRIDMIND.exe`；若旧版根目录程序仍在运行，可
 
 Gurobi 在 DP 模式中优化**年度状态路径**并与 Bellman 递推交叉核验；各状态的全年运行费仍由已说明的确定性8760小时运行规则计算。The stage MILP is not a yearlong unit commitment or network power-flow optimization.
 
+## 分区电力流与属性追踪 / Zonal flow and attributes
+
+0.2.8窗口下方的“分区CSV”输入框读取同一文件夹内四张UTF-8 CSV；可点“生成合成输入”得到固定种子四区教学样本，再选择“Gurobi LP”运行，结果按次独立保存在 `GRIDMIND_results/network_时间`。该示例只有连接方向有公开资料依据，线路参数、负荷、成本及排放因子均是虚构值。用户自己的区域数据不会进入公开仓库。The synthetic fixture is a format demonstration, not a model of actual regional operations.
+
+- `zones.csv`: `zone`，每区一行。/ One row per zone.
+- `generators.csv`: `name,zone,technology,minimum_mw,maximum_mw,cost_yuan_per_mwh,carbon_t_per_mwh,sulfur_kg_per_mwh,renewable_fraction`。常规技术单列煤、气、常规水电、生物质、核电、光热、燃油、地热；风光在逐时表，抽蓄和电池放电另列。SO₂单位kg/MWh。/ Conventional technologies remain separate in the output.
+- `links.csv`: `name,source,target,limit_mw,kind,susceptance_mw_per_rad`。`kind=ac`需提供正电纳且选择Gurobi LP；`dc`为可控通道，限额两向对称。启发式模式只接受`dc`。/ AC uses phase-angle flow; the heuristic handles controllable channels only.
+- `hourly.csv`: 每个0—8759小时、每区恰有一行；列为 `hour,zone,demand_mw,wind_available_mw,solar_available_mw,pumped_charge_mw,pumped_discharge_mw,battery_charge_mw,battery_discharge_mw`，以及抽蓄和电池各自的 `carbon_t_per_mwh,sulfur_kg_per_mwh,renewable_fraction` 三个属性字段，分别加 `pumped_`、`battery_` 前缀。有对应放电时三属性必须给定。固定充放电须由输入方先验证SOC，本入口只校核逐时功率与属性守恒。/ Pumped storage and batteries have separate hourly flows and discharge attributes.
+
+存档的 `tables/跨区运行和碳硫属性汇总.xlsx` 含分区年度、机组技术、线路利用与逐时属性四页；同目录CSV可复用。`run_manifest.json` 含输入文件SHA-256、求解方式及最大守恒残差。点击“查看8760小时运行图”选一个分区，可按日/周/月/年或任意小时缩放；图中区外来电为独立供给，洋红线为本地需求加外送，淡紫虚线为本地需求。The viewer reads the saved hourly table and does not rerun optimization.
+
 ## 查看与保存 / View and archive
 
-完成后“查看8760小时运行图”弹出单张堆叠图：供给与弃电在正向，抽蓄及电池充电在负向，洋红色线为需求；正常风光为纯色，弃风光为同色斜线。可按日、周、月、年、任意左闭右开小时区间缩放和前后翻页，并将当前图保存为 PNG。The viewer reloads a saved result without recalculation.
+完成后“查看8760小时运行图”弹出单张堆叠图：供给与弃电在正向，抽蓄及电池充电在负向，洋红色线为需求；正常风光为纯色，弃光为黄色密正斜线、弃风为绿色密反斜线。日/周短窗口中少量薄弃电时，图上最多标记两次主要弃电小时及两类实际 MW，标记不放大电量面积。可按日、周、月、年、任意左闭右开小时区间缩放和前后翻页，并将当前图保存为 PNG。项目单区运行中，小容量储能机组按额定放电功率 MW 优先参与削峰；同容量按电站 ID，充电顺序不变。分区 CSV 模式的储能时序仍由输入文件固定给定。The viewer reloads a saved result without recalculation.
 
 “查看规划图”在 GA 存档中显示费用收敛与种群状态；在 DP 存档中显示年度费用、累计投运状态，以及同口径 GA 可行最优费用相对 DP/Gurobi 下界的收敛曲线。“打开结果存档”展示表格与独立图片文件夹；“载入已有存档”复用先前结果。The planning chart automatically follows the saved algorithm type and displays the paired comparison when available.
 

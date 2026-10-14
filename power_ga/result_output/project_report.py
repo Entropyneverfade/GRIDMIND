@@ -54,7 +54,7 @@ def _periods(hourly, lengths):
 
 
 def write_project_report(case, result, simulation, output_dir: Path, make_figures=True,
-                         synthetic=False):
+                         synthetic=False, figure_backend="origin"):
     """所有表格合入一个XLSX，图片和工程进入独立figures目录。"""
     if len(simulation.hourly) != 8760:
         raise ValueError("归档需要完整8760小时结果")
@@ -156,9 +156,17 @@ def write_project_report(case, result, simulation, output_dir: Path, make_figure
                 "synthetic": bool(synthetic), "source_workbook_sha256": source_hashes,
                 "cost_sha256": _hash_file(Path(case.cost_file)),
                 "selected_chromosome": list(selected), "warnings": list(case.warnings),
-                "figures_created": bool(make_figures)}
+                "figures_created": bool(make_figures),
+                "figure_backend_requested": figure_backend}
     (output_dir / "run_manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     if make_figures:
-        plot_project_results(case, result, simulation, output_dir)
+        if figure_backend == "python":
+            # Python 后端直接读取已归档逐时 CSV；目标电脑不需要 Origin。
+            from .python_plot import plot_project_results_python
+            plot_project_results_python(case, result, simulation, output_dir)
+        elif figure_backend == "origin":
+            plot_project_results(case, result, simulation, output_dir)
+        else:
+            raise ValueError("绘图后端须为 origin 或 python")
     return output_dir

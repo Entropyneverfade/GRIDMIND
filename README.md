@@ -1,8 +1,10 @@
 # GRIDMIND
 
-**请先阅读[五章完整研究报告 / Complete five-chapter report](docs/FINAL_STAGE_REPORT.md)：** 概述、GA与DP、运行规则、纯合成算例参数、结果及全部19张内嵌图片均在同一页面；公式使用GitHub可渲染的数学格式。新版分区传输与碳/SO₂/新能源属性为独立验证模块，尚未接入真实项目规划入口。The single report contains all current synthetic figures and equations.
+**请先阅读[五章完整研究报告 / Complete five-chapter report](docs/FINAL_STAGE_REPORT.md)：** 概述、GA与DP、运行规则、纯合成算例参数、结果及全部21张内嵌图片均在同一页面；公式使用GitHub可渲染的数学格式。分区传输与碳/SO₂/新能源属性已提供独立CSV应用入口，尚未接入真实项目GA/DP适应度。The single report contains all current synthetic figures and equations.
 
 **0.2.7 弃电规则 / Curtailment:** 项目运行改为按当时风光可用出力份额分摊弃电，重跑三年度合成算例后同时出现弃风和弃光。An explicitly parameterized network prototype and a physical attribute tracing layer are included as separate modules.
+
+**0.2.8 分区输入 / Zonal input:** EXE可读取四张CSV做8760小时分区流量和电力部门碳、SO₂、新能源物理属性追踪，输出综合工作簿并按区缩放查看。This is a separate operational analysis mode; network-constrained GA/DP remains future work.
 
 GRIDMIND is a modular research prototype for generation planning and chronological power system operation. GRIDMIND 是模块化的电源规划与全年逐时运行研究原型。桌面入口位于 `gridmind_app/`，算法位于 `power_ga/`，两者通过 `project_main.execute()` 连接。
 
@@ -21,8 +23,9 @@ GRIDMIND is a modular research prototype for generation planning and chronologic
 - A deterministic 8,760-hour single-region operation model covering coal, gas, conventional hydro, pumped storage, battery storage, wind, solar PV and biomass. / 单区域全年8760小时确定性运行，覆盖八类机组。
 - Storage charge, discharge and internal energy carry continuously across day and month boundaries. / 储能功率与内部库存跨日、跨月连续。
 - One workbook for annual, monthly, daily, hourly, project, storage, GA and data-quality tables. Static figures are kept in separate figure folders; the desktop viewer supports day, week, month, year and arbitrary hour ranges. / 一份汇总工作簿，图表分开存档，交互窗口支持日周月年和任意小时区间。
+- A separate four-CSV zonal mode solves 8,760 hourly power balances and traces physical carbon, SO₂ and renewable attributes to served demand. / 独立分区入口读取四张CSV、输出潮流与碳硫属性综合表，支持逐区缩放。
 
-The model is a transparent research baseline. It does not solve full network power flow, probabilistic reliability, hydraulic cascade scheduling or a globally optimal annual unit-commitment problem. 当前是透明可审计的研究基线，尚未提供完整潮流、概率可靠性、梯级水电或全年全局最优机组组合。
+The planning model is a transparent single-region research baseline; the separate zonal mode uses a lossless linear active-power approximation. Neither provides full AC power flow, probabilistic reliability, hydraulic cascade scheduling or a globally optimal annual unit-commitment problem. 当前主规划仍为单区域，分区模式也只计算无损线性有功近似，尚未提供完整交流潮流、概率可靠性、梯级水电或全年全局最优机组组合。
 
 ## Layout / 目录
 
@@ -67,21 +70,11 @@ python -m unittest discover -s tests -q
 
 On Windows, `gridmind_app/build.ps1` uses PyInstaller to create `GRIDMIND.exe` and a versioned copy with the original icon and bundled renderer. The versioned copy remains usable if an older root EXE is open. Static native Origin figures require a separately installed Origin; turn off the figure option in the desktop app when unavailable. The EXE accepts `--viewer <result-folder>` to open the zoom window, `--export-demo-views` for five scales, and `--export-monthly-views` for twelve event-marked months. A valid local Gurobi installation/license is required for DP; it is not included in this repository. Windows 下可用打包脚本生成带原创图标的 EXE；动态规划依赖本机有效 Gurobi 许可。
 
-## Zoom demonstration / 8760小时缩放演示
+## Complete results / 完整结果
 
-The five images below are **fully synthetic** eight-technology 8,760-hour results. The load, wind and PV profiles include reproducible seeded variability. The desktop viewer lets users choose day/week/month/year, page through periods or enter any `[start,end)` hour range. 图中包含八类机组；窗口可选择日周月年、前后翻页及任意小时区间。[图例、边界与复现方法 / Gallery details](docs/PREVIEWS.md)。
+日、周、月、年和任意区间的新版缩放图、12张月图、GA/DP图、分区图、公式、参数和工作簿链接都直接放在[五章报告](docs/FINAL_STAGE_REPORT.md)中。The report is the single reading entry; the [user guide](docs/USER_GUIDE.md) describes the controls and CSV format.
 
-| Day / 日 | Week / 周 |
-|---|---|
-| ![Synthetic day 182](examples/previews/v0.2.0/day_182.png) | ![Synthetic week 27](examples/previews/v0.2.0/week_27.png) |
-
-| Month / 月 | Year / 年 |
-|---|---|
-| ![Synthetic month 7](examples/previews/v0.2.0/month_7.png) | ![Synthetic full year](examples/previews/v0.2.0/year_1.png) |
-
-See [the original twelve monthly charts / 原月图](docs/MONTHLY_GALLERY.md), [the three-year final-year monthly charts / 三年度末年月图](docs/FULL_HORIZON_GALLERY.md), [complete GA–DP synthetic case and 80-run seed sensitivity / 完整案例与80次随机种子对比](docs/CASE_STUDY.md), [user guide / 使用说明](docs/USER_GUIDE.md) and [roadmap / 计划](docs/ROADMAP.md).
-
-Normal wind and PV are solid colors; curtailment uses the matching color with diagonal hatching. Storage charging is shown below zero on the same stack chart, and the magenta load line is deliberately prominent. 正常风光采用纯色，弃风弃光使用同色斜线；储能充电在同一图的零线下方，洋红负荷线加粗。月度未用水量没有逐时弃水解释，因此不绘制逐时弃水色块。
+Normal wind and PV are solid colors; curtailed PV uses dense yellow forward slashes, curtailed wind dense green backslashes. Sparse events in day/week views receive callouts with the actual MW; the areas are not inflated. Small rated-MW storage plants discharge first for peak shaving in the single-region project model. 储能充电在同一图的零线下方，洋红负荷线加粗；弃电文字只用于定位，不改变面积。月度未用水量没有逐时弃水解释，因此不绘制逐时弃水色块。
 
 ## Data and licensing / 数据与许可
 

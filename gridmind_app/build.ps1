@@ -1,5 +1,5 @@
 ﻿# GRIDMIND应用打包入口；本文件只处理窗口与依赖，不修改算法模块。
-param([string]$PythonPath = 'python', [string]$Version = '0.2.7')
+param([string]$PythonPath = 'python', [string]$Version = '0.2.8')
 $ErrorActionPreference = 'Stop'
 $app = Split-Path -Parent $MyInvocation.MyCommand.Path
 $project = Split-Path -Parent $app
@@ -21,11 +21,15 @@ foreach($path in @($entry, $icon, $costs, $syntheticCosts, $renderer)) {
     --add-data "${assetDir};gridmind_app/assets" `
     --add-data "${renderer};power_ga/result_output" `
     --hidden-import power_ga.result_output.viewer `
+    --hidden-import power_ga.result_output.python_plot `
     --hidden-import power_ga.dynamic_planning.solver `
     --hidden-import power_ga.result_output.dynamic_report `
+    --hidden-import power_ga.operation_simulation.network_case `
     --hidden-import examples.synthetic_dynamic_case `
+    --hidden-import examples.synthetic_network_case `
     --collect-all gurobipy `
     --hidden-import matplotlib.backends.backend_tkagg `
+    --hidden-import matplotlib.backends.backend_pdf `
     --distpath (Join-Path $app 'dist') `
     --workpath (Join-Path $app 'build_cache') `
     --specpath $app $entry

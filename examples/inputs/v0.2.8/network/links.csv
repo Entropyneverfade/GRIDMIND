@@ -1,0 +1,4 @@
+﻿name,source,target,limit_mw,kind,susceptance_mw_per_rad
+晋华北_示意交流,山西,华北,22.0,ac,120.0
+晋华中_示意交流,山西,华中,16.0,ac,100.0
+晋苏_示意直流,山西,江苏,12.0,dc,

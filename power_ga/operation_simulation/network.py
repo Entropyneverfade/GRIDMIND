@@ -26,6 +26,7 @@ class Generator:
     minimum_mw: float
     maximum_mw: float
     cost_yuan_per_mwh: float
+    technology: str = "unclassified"
 
 
 @dataclass(frozen=True)
@@ -71,6 +72,12 @@ def solve_network_hour(zones, generators, links, *,
     =负荷+固定充电+溢出。AC边满足 f=b(θ源−θ受)，DC边为可控f。
     这是无损有功近似；没有电压、无功、N-1、动态稳定或损耗。
     """
+    import builtins
+
+    # PyInstaller的隔离解释器可能不执行site初始化；Gurobi扩展导入时会引用help。
+    if not hasattr(builtins, "help"):
+        import site
+        site.sethelper()
     import gurobipy as gp
     from gurobipy import GRB
 

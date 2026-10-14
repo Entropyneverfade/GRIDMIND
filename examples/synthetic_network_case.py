@@ -9,6 +9,7 @@ from pathlib import Path
 
 from power_ga.operation_simulation.network import (
     Generator, Link, Zone, solve_network_timeseries)
+from power_ga.operation_simulation.network_case import run_network_case
 
 
 # 公开资料仅证实山西向华北、华中、江苏有外送互联，且晋北—南京直流存在。
@@ -52,6 +53,75 @@ def build_hours():
     return hourly_zones, hourly_generators
 
 
+def write_case_input(destination: Path):
+    """生成可由正式EXE读取的四个CSV；数值和排放因子均为教学假设。"""
+    destination = Path(destination)
+    destination.mkdir(parents=True, exist_ok=True)
+    zones, generator_hours = build_hours()
+    with (destination / "zones.csv").open("w", newline="", encoding="utf-8-sig") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(("zone",))
+        writer.writerows((zone.name,) for zone in zones[0])
+    # tCO₂/MWh与kgSO₂/MWh只用于演示守恒，不作为任何地区实测排放因子。
+    factors = {"晋煤_合成": ("coal", 0.82, 0.30, 0),
+               "华北气_合成": ("gas", 0.39, 0.03, 0),
+               "华中水_合成": ("hydro", 0, 0, 1),
+               "江苏气_合成": ("gas", 0.39, 0.03, 0),
+               "晋生物质_合成": ("biomass", 0.08, 0.05, 1)}
+    units = (*generator_hours[0], Generator("晋生物质_合成", "山西", 0, 5, 180))
+    with (destination / "generators.csv").open("w", newline="", encoding="utf-8-sig") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(("name", "zone", "technology", "minimum_mw", "maximum_mw",
+                         "cost_yuan_per_mwh", "carbon_t_per_mwh",
+                         "sulfur_kg_per_mwh", "renewable_fraction"))
+        writer.writerows((unit.name, unit.zone, factors[unit.name][0],
+                          unit.minimum_mw, unit.maximum_mw,
+                          unit.cost_yuan_per_mwh, *factors[unit.name][1:])
+                         for unit in units)
+    with (destination / "links.csv").open("w", newline="", encoding="utf-8-sig") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(("name", "source", "target", "limit_mw", "kind",
+                         "susceptance_mw_per_rad"))
+        writer.writerows((link.name, link.source, link.target, link.limit_mw,
+                          link.kind, link.susceptance_mw_per_rad or "") for link in LINKS)
+    with (destination / "hourly.csv").open("w", newline="", encoding="utf-8-sig") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(("hour", "zone", "demand_mw", "wind_available_mw",
+                         "solar_available_mw", "pumped_charge_mw", "pumped_discharge_mw",
+                         "battery_charge_mw", "battery_discharge_mw",
+                         "pumped_carbon_t_per_mwh", "pumped_sulfur_kg_per_mwh",
+                         "pumped_renewable_fraction", "battery_carbon_t_per_mwh",
+                         "battery_sulfur_kg_per_mwh", "battery_renewable_fraction"))
+        for hour, hourly in enumerate(zones):
+            hod = hour % 24
+            for zone in hourly:
+                # 每日先充4小时、傍晚放4小时；8MWh充电→6.4MWh放电相当于80%往返效率。
+                battery_charge = 2.0 if zone.name == "山西" and hod < 4 else 0.0
+                battery_discharge = 1.6 if zone.name == "山西" and 18 <= hod < 22 else 0.0
+                pumped_charge = 3.0 if zone.name == "华北" and hod < 4 else 0.0
+                pumped_discharge = 2.4 if zone.name == "华北" and 18 <= hod < 22 else 0.0
+                writer.writerow((hour, zone.name, zone.demand_mw,
+                                 zone.wind_available_mw, zone.solar_available_mw,
+                                 pumped_charge, pumped_discharge,
+                                 battery_charge, battery_discharge,
+                                 *((0.40, 0.10, 0.35) if pumped_discharge else ("", "", "")),
+                                 *((0.35, 0.08, 0.45) if battery_discharge else ("", "", ""))))
+    (destination / "INPUT_NOTE.md").write_text(
+        "# 公开合成分区输入\n\n只有连接方向参考公开资料；聚合节点、需求、装机、线路限额、"
+        "电纳、成本与排放因子均由固定种子或人工教学假设生成。抽蓄/电池的固定日计划"
+        "按80%往返效率形成每日能量闭环，放电属性是额外明示的教学假设。\n\n"
+        "交流边请选择Gurobi LP；启发式模式必须把所有边显式设为可控通道，"
+        "不能把交流线路直接改名为直流。\n", encoding="utf-8")
+    return destination
+
+
+def run_csv_case(destination: Path):
+    """在同一固定种子输入上运行完整8760小时分区潮流和属性追踪。"""
+    destination = Path(destination)
+    input_dir = write_case_input(destination / "input")
+    return run_network_case(input_dir, destination / "result", solver="gurobi")
+
+
 def run(destination: Path):
     """8760次分区LP，输出逐时功率、年度汇总与可核查的假设清单。"""
     destination = Path(destination)
@@ -91,4 +161,8 @@ def run(destination: Path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
-    print(json.dumps(run(parser.parse_args().output), ensure_ascii=False, indent=2))
+    parser.add_argument("--csv-platform-case", action="store_true",
+                        help="生成EXE可读输入，并运行碳硫属性追踪")
+    args = parser.parse_args()
+    result = run_csv_case(args.output) if args.csv_platform_case else run(args.output)
+    print(json.dumps(result, ensure_ascii=False, indent=2))

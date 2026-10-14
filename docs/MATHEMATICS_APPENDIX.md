@@ -96,6 +96,8 @@ $$
 
 $T_s$ 为额定小时数，$\rho_s^{ch}$ 为充电功率比例。年初 $E_{s,0}=0$，日、月边界不重置，年末库存按实值报告。Charging first absorbs surplus from online minimum output and available renewables. Discharging is requested when the residual exceeds the mean renewable-adjusted demand in the next up-to-24-hour lookahead or exceeds online conventional capacity, subject to available energy and power. This is an operating rule, not a globally optimal arbitrage schedule.
 
+削峰放电顺序是对所有可用储能站按 $(\overline P_s,\mathrm{stationID}_s)$ 升序排列。若本小时请求为 $D_t$，依次令 $D_t^{(1)}=D_t$、$p_{s_k,t}^{dis}=\min(D_t^{(k)},\overline P_{s_k},E'_{s_k,t}\eta_{s_k}^{dis}/\Delta t)$、$D_t^{(k+1)}=D_t^{(k)}-p_{s_k,t}^{dis}$。这里“小容量”指额定放电功率 MW；充电顺序不变。The rule gives smaller rated-power units first access to peak-shaving demand; it does not optimize marginal cost or infer energy capacity from the MW ranking.
+
 **合成手算 / Synthetic check:** $\eta^{RT}=0.81$，则 $\eta^{ch}=\eta^{dis}=0.9$。从零库存充电 10 MW 一小时，$E=9$ MWh；下一小时最多从这笔电向电网放出 $9\times0.9=8.1$ MWh, matching the 81% round trip.
 
 ## 8. 在线备用与规划备用 / Online and planning reserves

@@ -1,0 +1,23 @@
+{
+  "synthetic": true,
+  "status": "PASS",
+  "stages": 3,
+  "hours_per_stage": 8760,
+  "states_per_stage": 256,
+  "dp_states": [
+    0,
+    2,
+    2
+  ],
+  "ga_states": [
+    0,
+    2,
+    2
+  ],
+  "dp_gurobi_gap_yuan": 0.0,
+  "ga_dp_gap_yuan": 0.0,
+  "max_balance_residual_mw": 2.842170943040401e-14,
+  "max_storage_residual_mwh": 3.552713678800501e-15,
+  "max_hydro_monthly_excess_mwh": 0.0,
+  "final_year_technologies_positive": 8
+}

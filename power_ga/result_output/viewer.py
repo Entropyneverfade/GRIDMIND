@@ -12,7 +12,7 @@ from pathlib import Path
 
 from ..common.domain import PLANNING_MONTH_HOURS
 
-# 配色与Origin静态图一致；这里是交互窗口，静态交付仍由Origin原生绘制。
+# 配色与Origin静态图共用主色；交互窗口及无Origin的静态后端均用Python绘制。
 COLORS = {"thermal": "#FF0000", "solar": "#FFFF00", "wind": "#00DD00",
           "storage": "#0000FF", "charge": "#527BFF", "load": "#FF00FF",
           "unserved": "#DDDDDD"}
@@ -41,6 +41,55 @@ def load_hours(result_dir: Path):
             hours.append({field: float(row[field]) for field in (*FIELDS, *optional)})
     if len(hours) != 8760:
         raise ValueError(f"查看窗口需要8760小时，实际{len(hours)}小时")
+    return hours
+
+
+def load_network_hours(result_dir: Path, zone_name: str):
+    """把分区逐时表转换为同一缩放窗口的数据契约；外送并入总需求。"""
+    path = Path(result_dir) / "tables" / "hourly_network.csv"
+    technologies = ("coal", "gas", "hydro", "biomass", "nuclear", "csp",
+                    "oil", "geothermal")
+    required = ("hour", "zone", "demand_mw",
+                *(f"{technology}_mw" for technology in technologies),
+                "wind_mw", "solar_mw", "imports_mw", "exports_mw",
+                "pumped_charge_mw", "pumped_discharge_mw", "battery_charge_mw",
+                "battery_discharge_mw", "wind_curtailment_mw",
+                "solar_curtailment_mw", "unserved_mw", "spill_mw")
+    hours = []
+    with path.open(encoding="utf-8-sig", newline="") as stream:
+        reader = csv.DictReader(stream)
+        if not set(required).issubset(reader.fieldnames or ()):
+            raise ValueError("分区逐时表缺少运行图字段")
+        for row in reader:
+            if row["zone"] != zone_name:
+                continue
+            if int(row["hour"]) != len(hours):
+                raise ValueError("分区逐时序列断号")
+            demand, outgoing = float(row["demand_mw"]), float(row["exports_mw"])
+            pumped_charge, battery_charge = (float(row["pumped_charge_mw"]),
+                                               float(row["battery_charge_mw"]))
+            pumped_discharge, battery_discharge = (float(row["pumped_discharge_mw"]),
+                                                     float(row["battery_discharge_mw"]))
+            hours.append({"load_mw": demand + outgoing,
+                          "domestic_load_mw": demand, "export_mw": outgoing,
+                          **{f"{technology}_mw": float(row[f"{technology}_mw"])
+                             for technology in technologies},
+                          "imports_mw": float(row["imports_mw"]),
+                          "wind_mw": float(row["wind_mw"]),
+                          "solar_mw": float(row["solar_mw"]),
+                          "pumped_charge_mw": pumped_charge,
+                          "pumped_discharge_mw": pumped_discharge,
+                          "battery_charge_mw": battery_charge,
+                          "battery_discharge_mw": battery_discharge,
+                          "storage_charge_mw": pumped_charge + battery_charge,
+                          "storage_discharge_mw": pumped_discharge + battery_discharge,
+                          "storage_energy_end_mwh": 0.0,
+                          "wind_curtailment_mw": float(row["wind_curtailment_mw"]),
+                          "solar_curtailment_mw": float(row["solar_curtailment_mw"]),
+                          "unserved_mw": float(row["unserved_mw"]),
+                          "overgeneration_mw": float(row["spill_mw"])})
+    if len(hours) != 8760:
+        raise ValueError(f"分区查看窗口需要8760小时，{zone_name}只有{len(hours)}小时")
     return hours
 
 
@@ -104,8 +153,6 @@ def draw_view(fig, hours, start: int, end: int, view_label="", mark_month_events
     """一张堆叠图同时展示各类电源、负荷及负向储能充电。"""
     if not 0 <= start < end <= 8760:
         raise ValueError("自定义范围必须满足0≤起点<终点≤8760")
-    import matplotlib.pyplot as plt
-
     part = hours[start:end]
     x = list(range(start, end + 1))
     fig.clear()
@@ -117,7 +164,25 @@ def draw_view(fig, hours, start: int, end: int, view_label="", mark_month_events
     # 正向面积按火电→放电→光伏→风电→缺供→弃电堆叠，面积积分=相应电量。
     base = [0.0] * len(part)
     # 项目库保留八类出力；演示算例仍使用原有火电汇总字段。
-    if "coal_mw" in part[0]:
+    if "imports_mw" in part[0]:
+        # 分区平衡把进口作为独立供给，出口并入洋红总需求线。
+        series = (("coal_mw", "煤电", COLORS["thermal"], None),
+                  ("gas_mw", "燃气", "#E46C0A", None),
+                  ("nuclear_mw", "核电", "#9966CC", None),
+                  ("hydro_mw", "常规水电", "#22B8D6", None),
+                  ("biomass_mw", "生物质", "#A56A42", None),
+                  ("csp_mw", "光热", "#D7A31A", None),
+                  ("oil_mw", "燃油", "#7F7F7F", None),
+                  ("geothermal_mw", "地热", "#7C9A4B", None),
+                  ("pumped_discharge_mw", "抽蓄放电", "#154AAB", None),
+                  ("battery_discharge_mw", "电池放电", "#526CFF", None),
+                  ("imports_mw", "区外来电", "#8064A2", None),
+                  ("solar_mw", "光伏", COLORS["solar"], None),
+                  ("wind_mw", "风电", COLORS["wind"], None),
+                  ("unserved_mw", "缺供", COLORS["unserved"], "xx"),
+                  ("solar_curtailment_mw", "弃光", COLORS["solar"], "//"),
+                  ("wind_curtailment_mw", "弃风", COLORS["wind"], "\\\\"))
+    elif "coal_mw" in part[0]:
         series = (("coal_mw", "煤电", COLORS["thermal"], None),
                   ("gas_mw", "燃气", "#E46C0A", None),
                   ("biomass_mw", "生物质", "#A56A42", None),
@@ -128,7 +193,7 @@ def draw_view(fig, hours, start: int, end: int, view_label="", mark_month_events
                   ("wind_mw", "风电", COLORS["wind"], None),
                   ("unserved_mw", "缺供", COLORS["unserved"], "xx"),
                   ("solar_curtailment_mw", "弃光", COLORS["solar"], "//"),
-                  ("wind_curtailment_mw", "弃风", COLORS["wind"], "//"))
+                  ("wind_curtailment_mw", "弃风", COLORS["wind"], "\\\\"))
     else:
         series = (("thermal_mw", "火电", COLORS["thermal"], None),
                   ("storage_discharge_mw", "储能放电", COLORS["storage"], None),
@@ -136,32 +201,88 @@ def draw_view(fig, hours, start: int, end: int, view_label="", mark_month_events
                   ("wind_mw", "风电", COLORS["wind"], None),
                   ("unserved_mw", "缺供", COLORS["unserved"], "xx"),
                   ("solar_curtailment_mw", "弃光", COLORS["solar"], "//"),
-                  ("wind_curtailment_mw", "弃风", COLORS["wind"], "//"))
+                  ("wind_curtailment_mw", "弃风", COLORS["wind"], "\\\\"))
     for field, label, color, hatch in series:
         values = [h[field] for h in part]
         upper = [a + b for a, b in zip(base, values)]
         if max(values) > 1e-8:
-            top.fill_between(x, _step(base), _step(upper), step="post", label=label,
-                             color=color, linewidth=0.25, edgecolor="black", hatch=hatch)
+            # 普通电源不画每小时多边形黑边；黑边叠加会把高密度堆叠图压成灰色。
+            # 弃电才保留与其电源同色的纹理，小时数据并未降采样。
+            hatch_color = ("#005D00" if field == "wind_curtailment_mw" else
+                           "#806A00" if field == "solar_curtailment_mw" else "#555555")
+            # 风、光分别用反向密斜线；8条基纹比先前4条在缩略图更容易辨别。
+            style = ({"edgecolor": hatch_color, "linewidth": 0.65, "hatch": hatch * 4}
+                     if hatch else {"edgecolor": "none", "linewidth": 0.0})
+            patch = top.fill_between(x, _step(base), _step(upper), step="post", label=label,
+                                     facecolor=color, alpha=1.0, **style)
+            if hatch and hasattr(patch, "set_hatch_linewidth"):
+                # 描线加粗只改变视觉纹理，不扩大真实弃电功率面积。
+                patch.set_hatch_linewidth(1.25)
         base = upper
     charge = [h["storage_charge_mw"] for h in part]
-    if max(charge) > 1e-8:
+    if "pumped_charge_mw" in part[0]:
+        # 负向充电也逐技术堆叠，抽蓄和电池不混合为一条色块。
+        negative_base = [0.0] * len(part)
+        for field, label, color in (("pumped_charge_mw", "抽蓄充电（负向）", "#154AAB"),
+                                    ("battery_charge_mw", "电池充电（负向）", "#526CFF")):
+            values = [h[field] for h in part]
+            lower = [base - value for base, value in zip(negative_base, values)]
+            if max(values) > 1e-8:
+                top.fill_between(x, _step(lower), _step(negative_base), step="post",
+                                 label=label, facecolor=color, edgecolor="none", linewidth=0)
+            negative_base = lower
+    elif max(charge) > 1e-8:
         top.fill_between(x, _step([-v for v in charge]), 0, step="post", label="储能充电（负向）",
-                         color=COLORS["charge"], hatch="xx", linewidth=0.3)
+                         facecolor=COLORS["charge"], edgecolor="none", linewidth=0)
     top.step(x, _step([h["load_mw"] for h in part]), where="post", label="原始负荷",
              color=COLORS["load"], linewidth=2.6, zorder=12)
     if "export_mw" in part[0]:
         # 洋红为本地负荷+外送；本地负荷另画虚线，可核对外送贡献。
         top.step(x, _step([h["domestic_load_mw"] for h in part]), where="post",
                  label="本地负荷", color="#803080", linestyle="--", linewidth=0.8)
-    ymax = max(20, math.ceil(max(base) / 20) * 20)
-    ymin = -math.ceil(max(charge) / 20) * 20
-    if ymin == ymax:
-        ymin, ymax = 0, 20
+    # 只保留约6个纵轴主刻度；先计算可见上界，再固定Locator以阻止旧窗口的刻度累积。
+    from matplotlib.ticker import FixedLocator, FuncFormatter
+    raw_span = max(max(base), max(h["load_mw"] for h in part)) + max(charge)
+    target_step = max(1.0, raw_span / 6.0)
+    magnitude = 10 ** math.floor(math.log10(target_step))
+    tick_step = next(multiplier * magnitude for multiplier in (1, 2, 5, 10)
+                     if multiplier * magnitude >= target_step)
+    ymax = max(tick_step, math.ceil(max(max(base), max(h["load_mw"] for h in part)) / tick_step) * tick_step)
+    # 充电通常远小于总出力；负轴按实际充电量留边，不向下空出整档主刻度。
+    ymin = (-max(5.0, math.ceil(max(charge) * 1.15 / 5.0) * 5.0)
+            if max(charge) > 1e-8 else 0.0)
     top.set_ylim(ymin, ymax)
-    top.set_yticks(list(range(ymin, ymax + 1, 20)))
+    y_ticks = ([ymin] if ymin < 0 else []) + [index * tick_step
+               for index in range(int(round(ymax / tick_step)) + 1)]
+    top.yaxis.set_major_locator(FixedLocator(y_ticks))
+    top.yaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:,.0f}"))
+    top.minorticks_off()
     top.set_ylabel("功率 / MW")
-    top.grid(axis="y", alpha=0.20)
+    top.grid(axis="y", color="#D7DEE8", alpha=0.65, linewidth=0.6)
+    if end - start <= 168:
+        # 周及更短窗口内，1小时弃电面积可能仅占数个像素；标注最多两次主要
+        # 弃电小时的真实MW，文字只是定位提示，不改变面积或纵轴数量尺度。
+        active = sorted((i for i, hour in enumerate(part)
+                         if hour["wind_curtailment_mw"] + hour["solar_curtailment_mw"] > 1e-6),
+                        key=lambda i: part[i]["wind_curtailment_mw"] +
+                        part[i]["solar_curtailment_mw"], reverse=True)
+        marked = []
+        for i in active:
+            if len(marked) >= 2:
+                break
+            if all(abs(i - earlier) >= 12 for earlier in marked):
+                hour = part[i]
+                label = (f'弃风 {hour["wind_curtailment_mw"]:.2f} MW\n'
+                         f'弃光 {hour["solar_curtailment_mw"]:.2f} MW')
+                top.annotate(label, xy=(start + i + 0.5, base[i]),
+                             xytext=(start + i + 0.5, ymax * 0.94),
+                             ha="center", va="top", fontsize=8.5, color="#303846",
+                             arrowprops={"arrowstyle": "-", "color": "#303846",
+                                         "linewidth": 0.75},
+                             bbox={"facecolor": "white", "alpha": 0.92,
+                                   "edgecolor": "#C3CBD5", "boxstyle": "round,pad=0.25"},
+                             zorder=16)
+                marked.append(i)
     if mark_month_events:
         # 事件竖线落在完整日中点；图中名称与导出的事件表使用同一计算结果。
         for index, event in enumerate(month_events(hours, start, end)):
@@ -177,7 +298,8 @@ def draw_view(fig, hours, start: int, end: int, view_label="", mark_month_events
                          color=color, fontsize=9, ha="left" if side == 1 else "right",
                          bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "none"},
                          zorder=15)
-    top.legend(loc="lower left", bbox_to_anchor=(0, 1.01), ncol=5, fontsize=8, frameon=True)
+    top.legend(loc="lower left", bbox_to_anchor=(0, 1.01), ncol=6, fontsize=8,
+               frameon=False, handlelength=1.8, columnspacing=1.2)
 
     # 上方同一坐标轴已经把充电画成负面积、放电画成正出力；库存保留在逐时表。
     top.set_xlabel("全年小时序号（小时0为年初）")
@@ -187,9 +309,12 @@ def draw_view(fig, hours, start: int, end: int, view_label="", mark_month_events
                                                 168 if end - start <= 744 else 2190)
     ticks = [start] + list(range(((start // target_step) + 1) * target_step, end, target_step)) + [end]
     top.set_xticks(sorted(set(ticks)))
-    top.tick_params(direction="in", which="both", top=False, right=False)
-    fig.subplots_adjust(left=0.08, right=0.97,
-                        top=0.75 if "export_mw" in part[0] else 0.84, bottom=0.10)
+    top.tick_params(direction="in", which="both", top=False, right=False,
+                    length=5, width=0.8, colors="#303846")
+    top.spines[["top", "right"]].set_visible(False)
+    top.spines[["left", "bottom"]].set_color("#303846")
+    fig.subplots_adjust(left=0.10, right=0.975,
+                        top=0.81 if "export_mw" in part[0] else 0.84, bottom=0.10)
     return top
 
 
@@ -260,8 +385,13 @@ def launch(hours, smoke=False):
     """建立用户可见Tk窗口，提供尺度切换、翻页、任意区间和图片导出。"""
     import tkinter as tk
     from tkinter import filedialog, messagebox, ttk
+    import matplotlib
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
     from matplotlib.figure import Figure
+
+    # 独立EXE子窗口也设置中文字体，避免分区名称和图例显示为方框。
+    matplotlib.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimSun", "DejaVu Sans"]
+    matplotlib.rcParams["axes.unicode_minus"] = False
 
     root = tk.Tk()
     if smoke:
@@ -274,6 +404,7 @@ def launch(hours, smoke=False):
     number = tk.StringVar(value="1")
     start_text, end_text = tk.StringVar(value="0"), tk.StringVar(value="24")
     status = tk.StringVar(value="数据：8760小时；窗口按小时序号定位")
+    displayed = None  # 相同窗口不重建上万个面积顶点，减少重复点击引起的卡顿。
     ttk.Label(controls, text="尺度").pack(side="left")
     ttk.Combobox(controls, textvariable=scale, values=("日", "周", "月", "年", "自定义"),
                  width=8, state="readonly").pack(side="left", padx=4)
@@ -292,15 +423,19 @@ def launch(hours, smoke=False):
 
     def redraw(a, b):
         """应用左闭右开区间，刷新供给、弃电、充电同图的单张堆叠视图。"""
+        nonlocal displayed
         try:
             a, b = int(a), int(b)
             view_label = (f"第{number.get()}{scale.get()}" if scale.get() in {"日", "周", "月"}
                           else "全年8760小时" if scale.get() == "年" else f"自定义小时 {a}–{b - 1}")
-            draw_view(fig, hours, a, b, view_label, mark_month_events=scale.get() == "月")
+            state = (a, b, view_label, scale.get() == "月")
+            if state != displayed:
+                draw_view(fig, hours, a, b, view_label, mark_month_events=state[3])
+                displayed = state
+                canvas.draw_idle()
             start_text.set(str(a))
             end_text.set(str(b))
             status.set(f"当前窗口：全年小时 {a}–{b - 1}，共 {b - a} 小时")
-            canvas.draw_idle()
         except (ValueError, IndexError) as error:
             messagebox.showerror("时间范围错误", str(error), parent=root)
 

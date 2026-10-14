@@ -4,6 +4,8 @@ import math
 from dataclasses import dataclass, replace
 from typing import Tuple
 
+import numpy as np
+
 from ..common.domain import PLANNING_MONTH_HOURS
 from ..data_collection.project_case import CasePlant, ProjectCase
 
@@ -120,24 +122,25 @@ def _hydro_target(net_load, capacity_mw, monthly_budget):
     profile = []
     first = 0
     for month, size in enumerate(PLANNING_MONTH_HOURS):
-        weights = [max(0.0, v) for v in net_load[first:first + size]]
+        # 同一个月的二分要累计约60×700个小时；数组运算保持原公式而减少Python循环。
+        weights = np.maximum(0.0, np.asarray(net_load[first:first + size], dtype=float))
         budget = min(monthly_budget[month], capacity_mw * size)
         if budget <= 0:
             profile.extend([0.0] * size)
-        elif max(weights) <= 0:
+        elif float(weights.max()) <= 0:
             # w_t=0 对所有小时成立时，p_t=min(Pmax,λw_t)=0；剩余水量未用。
             # 强制摊销预算会凭空制造发电与过剩，也违背月水量“上限”口径。
             profile.extend([0.0] * size)
         else:
-            low, high = 0.0, max(1.0, capacity_mw / min(v for v in weights if v > 0))
+            low, high = 0.0, max(1.0, capacity_mw / float(weights[weights > 0].min()))
             # f(λ)=Σ min(Pmax,λw_t) 单调，60次二分达双精度。
             for _ in range(60):
                 middle = (low + high) / 2
-                if sum(min(capacity_mw, middle * w) for w in weights) < budget:
+                if float(np.minimum(capacity_mw, middle * weights).sum()) < budget:
                     low = middle
                 else:
                     high = middle
-            profile.extend(min(capacity_mw, high * w) for w in weights)
+            profile.extend(np.minimum(capacity_mw, high * weights).tolist())
         first += size
     return tuple(profile)
 
@@ -162,6 +165,11 @@ def simulate_project(case: ProjectCase, chromosome, keep_hourly=False,
     dispatchable = tuple(sorted((p for p in plants if p.technology in {"coal", "gas", "hydro", "biomass"}),
                                 key=lambda p: (p.variable_cost_yuan_per_mwh, p.station_id)))
     stores = [_Storage(p) for p in plants if p.technology in {"pumped", "battery"}]
+    # 削峰放电按机组额定放电功率P额定由小到大；同容量用电站ID确定顺序。
+    # 只调整放电先后，不重排stores本身，避免逐站库存/逐时表索引错位。
+    discharge_order = sorted(range(len(stores)),
+                             key=lambda i: (stores[i].plant.capacity_mw,
+                                            stores[i].plant.station_id))
     month_of = _monthly_index()
     # 月可用水电量=月小时数×额定MW×设定年利用率×该月水文相对系数。
     # 0.42为可编辑运行参数，不是项目库提供的实测来水电量。
@@ -245,7 +253,9 @@ def simulate_project(case: ProjectCase, chromosome, keep_hourly=False,
         discharge_request = min(max(0.0, residual - threshold, residual - online_capacity),
                                 max(0.0, residual - must_run))
         if charge < 1e-9:
-            for i, state in enumerate(stores):
+            for i in discharge_order:
+                state = stores[i]
+                # 逐站Pdis=min(剩余削峰需求,P额定,Et·ηdis)；小功率站先占用需求。
                 power = state.discharge(discharge_request)
                 discharge_request -= power
                 discharge_by_kind[state.plant.technology] += power

@@ -44,7 +44,8 @@ def _stage_input_hash(case):
 def execute(source: Path, year: int, costs: Path, output: Path, *,
             plan=True, figures=True, population=12, generations=12, seed=1,
             progress=None, algorithm="ga", previous_load_factor=0.95,
-            stage_input_mode="source", planning_horizon="pair"):
+            stage_input_mode="source", planning_horizon="pair",
+            figure_backend="origin"):
     """数据采集→选择GA或年度DP→最终年8760h模拟→表/图存档。"""
     if algorithm not in {"ga", "dp"}:
         raise ValueError("规划算法只能是ga或dp")
@@ -52,6 +53,8 @@ def execute(source: Path, year: int, costs: Path, output: Path, *,
         raise ValueError("动态规划阶段输入只能选择年度源库或负荷系数情景")
     if planning_horizon not in {"pair", "full"}:
         raise ValueError("动态规划范围只能是相邻双年度或完整年度序列")
+    if figure_backend not in {"origin", "python"}:
+        raise ValueError("绘图后端须选择 Origin 或 Python")
     case = load_project_case(source, year, costs)
     if plan and algorithm == "dp" and not case.candidates:
         raise ValueError("动态规划没有候选项目；可改选仅模拟存量系统")
@@ -127,7 +130,8 @@ def execute(source: Path, year: int, costs: Path, output: Path, *,
         # 通用最终年报告需要best字段以列出被选项目；DP另存阶段工作簿。
         report_result = type("ReportResult", (), {
             "best": result.evaluations[-1][result.stages[-1].state], "history": ()})()
-        write_project_report(case, report_result, simulation, output, make_figures=figures)
+        write_project_report(case, report_result, simulation, output,
+                             make_figures=figures, figure_backend=figure_backend)
         write_dynamic_report(result, case, output, previous_load_factor,
                              stage_input_mode=stage_input_mode,
                              ga_comparison=ga_comparison,
@@ -152,7 +156,8 @@ def execute(source: Path, year: int, costs: Path, output: Path, *,
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
                                  encoding="utf-8")
     else:
-        write_project_report(case, result, simulation, output, make_figures=figures)
+        write_project_report(case, result, simulation, output,
+                             make_figures=figures, figure_backend=figure_backend)
     if plan and case.candidates:
         # 同一随机种子只有连同种群/代数才可复现；DP中的GA对照也使用这组三参数。
         manifest_path = Path(output) / "run_manifest.json"
