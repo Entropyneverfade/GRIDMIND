@@ -1,6 +1,6 @@
 # GRIDMIND
 
-**请先阅读[五章完整研究报告 / Complete five-chapter report](docs/FINAL_STAGE_REPORT.md)：** 概述、GA与DP、运行规则、纯合成算例参数、结果及全部25张内嵌图片均在同一页面；公式使用GitHub可渲染的数学格式。分区传输与碳/SO₂/新能源属性已提供独立CSV应用入口，尚未接入真实项目GA/DP适应度。The single report contains all current synthetic figures and equations.
+**请先阅读[五章完整研究报告 / Complete five-chapter report](docs/FINAL_STAGE_REPORT.md)：** 概述、GA与DP、运行规则、纯合成算例参数、结果及全部28张内嵌图片均在同一页面；公式使用GitHub可渲染的数学格式。分区传输与碳/SO₂/新能源属性已提供独立CSV应用入口，尚未接入真实项目GA/DP适应度。The single report contains all current synthetic figures and equations.
 
 **0.2.7 弃电规则 / Curtailment:** 项目运行改为按当时风光可用出力份额分摊弃电，重跑三年度合成算例后同时出现弃风和弃光。An explicitly parameterized network prototype and a physical attribute tracing layer are included as separate modules.
 
@@ -11,6 +11,8 @@
 **0.2.10 框选统计 / Drag-to-inspect:** 在8760小时查看器内按左键框选时段，浮窗直接汇总各类发电、弃电、储能充放、负荷及外送，显示MWh、平均MW与平衡残差。The popover integrates archived hourly power at 1 h resolution; it does not rerun the solver.
 
 **0.2.12 图窗分区切换 / Zonal viewer:** 每张运行图窗顶部都有“显示分区”；单区结果可直接点击“载入分区结果…”选取分区运行存档，随后在同一窗口切换全网汇总和各区，保留当前小时区间。全网图先验证进口等于出口，再抵消内部交换；各分区保留本区进口和外送。The [four full-year zonal views](docs/FINAL_STAGE_REPORT.md) use fixed synthetic data; a single-region archive alone cannot reconstruct other zones.
+
+**0.2.13 数据库分区与日期缩放 / Database regions and calendar zoom:** 图窗从兼容工作簿的系统、负荷、节点和电站表自动列出有效分区；只有单区汇总逐时表时，其他区域明确标记尚无逐区结果。Ctrl+滚轮按鼠标所在小时缩放，日期横轴在短窗口标注每日零点、全年抽稀到月初。The [synthetic day, week and year previews](docs/FINAL_STAGE_REPORT.md) show the new calendar ticks; no project-derived curve is published.
 
 GRIDMIND is a modular research prototype for generation planning and chronological power system operation. GRIDMIND 是模块化的电源规划与全年逐时运行研究原型。桌面入口位于 `gridmind_app/`，算法位于 `power_ga/`，两者通过 `project_main.execute()` 连接。
 

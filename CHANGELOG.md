@@ -1,5 +1,10 @@
 # Development progress / 开发进度
 
+## 2026-10-14 — Stage 0.2.13 / 数据库分区识别与日期滚轮缩放
+
+- 查看器沿结果清单读取兼容输入工作簿的系统、负荷、节点、电站关系，自动列出有负荷或有效电站的分区；根系统和占位系统排除。若本次只有汇总逐时表，分区名标注尚无逐区结果，不能用汇总曲线冒充。The catalog reflects workbook metadata while plots require region-specific archived power data.
+- Ctrl+滚轮以指针位置缩放到整数小时区间；横轴在周图标每天零点日期，在宽视图抽稀日期并保留两端向内真实刻度。The synthetic day, week and year previews expose the calendar mapping without project data.
+
 ## 2026-10-14 — Stage 0.2.12 / 任意运行图窗内载入并切换分区
 
 - 修复图窗入口不一致：单区结果窗口现在也显示“显示分区”下拉框，旁边可直接“载入分区结果…”。打开有效分区存档后，同一画布可选全网汇总与各区，并保留正在看的小时区间。Every operation window exposes the selector; loading a zonal archive no longer requires closing the chart.

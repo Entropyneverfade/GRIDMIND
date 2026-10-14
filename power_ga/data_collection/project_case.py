@@ -61,6 +61,65 @@ def _records(book, sheet):
     return [r for r in list(book[sheet].values)[1:] if r[0] is not None]
 
 
+def database_regions(source_folder: Path, target_year=None):
+    """从原始工作簿的系统/负荷/节点/电站关系识别有实际业务的分区。
+
+    系统0是汇总根；无正负荷也无有效电站的占位系统不作为可选区。
+    这里只读取元数据，不把全网逐时曲线复制给每一个分区。
+    """
+    source = Path(source_folder)
+    if source.is_file():
+        books = [source] if source.suffix.lower() == ".xlsx" else []
+    else:
+        year = str(target_year) if target_year is not None else ""
+        exact = source / year / f"{year}.xlsx" if year else None
+        books = [exact] if exact is not None and exact.is_file() else sorted(source.glob("*.xlsx"))
+    if not books:
+        return ()
+    catalogs = []
+    for path in books:
+        book = load_workbook(path, read_only=True, data_only=True)
+        try:
+            required = {"系统表", "负荷表", "节点表", "电站表"}
+            if not required.issubset(book.sheetnames):
+                raise ValueError(f"输入工作簿缺少分区关系表：{path.name}")
+
+            def records(sheet, columns):
+                """按表头而非固定列序抽取字段，兼容同格式工作簿的列位调整。"""
+                iterator = book[sheet].iter_rows(values_only=True)
+                headers = next(iterator)
+                positions = {str(value).strip(): index for index, value in enumerate(headers)
+                             if value is not None}
+                if not set(columns).issubset(positions):
+                    raise ValueError(f"{sheet}缺少分区关联字段")
+                for row in iterator:
+                    if row and row[0] is not None:
+                        yield {name: row[positions[name]] for name in columns}
+
+            systems = [(int(row["系统ID"]), str(row["名称"]).strip())
+                       for row in records("系统表", ("系统ID", "名称"))]
+            positive_load = {int(row["系统ID"])
+                             for row in records("负荷表", ("系统ID", "年Pmax"))
+                             if float(row["年Pmax"] or 0) > 0}
+            node_system = {int(row["节点ID"]): int(row["系统ID"])
+                           for row in records("节点表", ("节点ID", "系统ID"))}
+            plant_system = {node_system[int(row["节点ID"])]
+                            for row in records("电站表", ("节点ID", "有效性"))
+                            if int(row["有效性"] or 0) == 1 and
+                            int(row["节点ID"]) in node_system}
+            active = positive_load | plant_system
+            names = tuple(name for identifier, name in systems
+                          if identifier != 0 and identifier in active and name)
+            if len(set(names)) != len(names):
+                raise ValueError("系统表中有效分区名称重复")
+            catalogs.append(names)
+        finally:
+            book.close()  # 只读句柄及时释放，避免图窗多开时积压工作簿锁。
+    if any(names != catalogs[0] for names in catalogs[1:]):
+        raise ValueError("同一数据库目录内多个工作簿的分区定义不一致，请指定工作簿")
+    return catalogs[0]
+
+
 def _read_curve(year_folder: Path, name: str, cache: dict):
     """365日×24h展平，禁用插值；闰年校核2月29日是否已省略。"""
     if name in cache:

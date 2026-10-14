@@ -112,6 +112,8 @@ $$\sum_{g\in\rm conventional}p_{g,h}+W_h+S_h+\sum_sp^{\rm dis}_{s,h}+u_h=L_h+\su
 
 $o_h=\max(0,\text{缺供计入后的供给}-L_h-\sum_sp^{\rm ch}_{s,h})$ 是风光已经完全弃尽后仍因必发出力而无法消纳的过剩，与弃风弃光 $Q_h$ **不是一回事**。全年各项电量用 $\sum_hP_h\Delta t$ 汇总；最大功率残差为 $\max_h|\epsilon_h^P|$，储能残差按上式逐站逐时核对。运行器返回缺供 MWh、缺供小时数、在线备用不足 MWh、物理过剩 MWh、剩余水量预算和年末储能库存。评价器依 2.2 节条件判定状态可行，不能因为代数收敛或总体电量平衡就忽略逐时短缺。
 
+**逐时图中的竖直跃变如何解释：** 图形以每小时平均功率作为阶梯值，小时边界画成竖线；竖线不表示真实机组能在零时间完成调节。当前三年纯合成案例的末年，第3日13:00→14:00（全年小时61→62）负荷仅从85.42降至85.09 MW，而光伏可用量从49.72降至42.27 MW，实际光伏出力从45.05降至32.15 MW，抽蓄与电池合计充电从18.28降至0.93 MW；光伏弃电同时从4.67增至10.12 MW。逐时功率平衡残差约为零，故这处跳变是输入风光变化与“先满足最小出力、储能吸纳剩余”的小时决策共同造成，并非绘图平滑错误。合成风光还含固定种子的逐小时随机扰动。**物理边界：** 当前单区调度没有逐机组爬坡、最小开停机时间及储能功率变化率约束；若要判断机组能否完成跃变，需给出并检验 $-R_g^{\downarrow}\Delta t\le p_{g,h}-p_{g,h-1}\le R_g^{\uparrow}\Delta t$ 及启停状态。本版没有这些输入，不能把代数平衡等同于动态可行。Hourly steps represent interval averages; ramp feasibility is not yet certified.
+
 ### 3.5 独立分区运行：两种传输计算
 
 分区 CSV 模式按小时独立读入各区域负荷 $D_i$、风光可用量 $A_i^w,A_i^s$、**外部给定**储能充放电，及机组上下界 $[\underline P_g,\bar P_g]$、成本和线路方向/限额。以线路录入方向为正，$F_\ell$ 可正可负，$|F_\ell|\le\bar F_\ell$；对区 $i$ 的精确平衡为
@@ -125,6 +127,8 @@ $$\min\ \sum_gc_gp_g+10^6\sum_iu_i+10^4\sum_io_i+0.01\sum_i(A_i^w+A_i^s-R_i)+10^
 绝对值通过辅助变量线性化。罚价是当前代码的算法参数（元/MWh），不是某地区实测电价。由于只有线性有功关系，它没有电压、无功、损耗、N−1 或完整 AC 潮流。全 DC/可控通道时也可选择不依赖求解器的启发式：从最低出力和风光可用量开始，以广度优先搜索当前线路剩余容量上的路径，将富余先送到缺额区；再按机组费用升序增发、先供本区后沿路径供其他区；最后把未满足量记缺供、富余按风光份额弃电，余量记溢出。路径每次增广 $\delta=\min(\text{源富余},\text{受端缺额},\text{路径剩余限额})$。此法返回可行平衡，**不保证费用最优**，交流环网不能用它冒充相角潮流。见 [`network.py`](../power_ga/operation_simulation/network.py)。
 
 分区8760小时查看器对每区保留 $L_{i,t}=D_{i,t}+X_{i,t}$（本地需求加外送）与独立进口 $I_{i,t}$；全网总览只在每小时 $|\sum_iI_{i,t}-\sum_iX_{i,t}|\le10^{-5}$ MW 后抵消内部交换，显示 $D_t^{\rm all}=\sum_iD_{i,t}$。因此分区图能看见互济，全网图不会把同一内部电量重复记为发电和需求。所有运行图窗顶部均显示分区选择；单区结果可在原图窗点击“载入分区结果…”选择有分区逐时表的存档，再切换全网与各区。切换视图仅重绘已归档数据，不重新运行模型。The regional selector preserves the chosen hour range and popover statistics; single-region results do not contain reconstructible curves for other zones.
+
+分区名称现在沿运行清单回读兼容工作簿中的系统表，并与正负荷或有效电站所关联的系统ID交叉核对；汇总根系统和无业务占位系统不作为分区。数据发现与运行结果分开：如果当前存档仅有一条汇总逐时表，其他分区显示“未生成分区逐时结果”而不绘制伪分区图。图内Ctrl+滚轮的窗口宽度按 $W'=\operatorname{clip}(\operatorname{round}(0.75^{s}W),1,8760)$ 小时更新，其中 $s$ 是滚轮步数；鼠标所在小时保持在窗口中的相对位置。横轴按365日规划年的自然月小时边界映射日期，短窗口标每日00:00，全年只标自然月首日，同时保留显示两端的内向真刻度。Region metadata comes from the source workbook, while hourly curves come only from archived region-specific results.
 
 ### 3.6 碳、SO₂ 与物理新能源属性的比例追踪
 
@@ -289,6 +293,14 @@ DP阶段费用 / View：[原图](https://raw.githubusercontent.com/Entropyneverf
 江苏聚合区全年 / Synthetic Jiangsu zone：[原图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.11/jiangsu_year.png)
 
 ![纯合成江苏聚合区8760小时图](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.11/jiangsu_year.png)
+
+以下日期横轴示例使用固定种子的**纯合成**单区运行曲线，同一个Python/Matplotlib查看器分别输出日、周与全年窗口。周图每个日界都标日期；全年图抽稀为月初，避免标签重叠。The images demonstrate viewer ticks and do not disclose a project database.
+
+![合成第1日：日期与6小时时刻](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.13/day_1.png)
+
+![合成第1周：每天零点标注日期](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.13/week_1.png)
+
+![合成全年：日期标签按月初抽稀](https://raw.githubusercontent.com/Entropyneverfade/GRIDMIND/main/examples/previews/v0.2.13/year_1.png)
 
 **与先验结果比较。** 本机对照表逐项检查负荷、外送、机组发电、储能及弃电。先验场景与项目库原始负荷不同，因此先做固定GA建设方案、只替换先验8760小时本地负荷及外送的控制实验；该方案出现缺供。随后将目标年全部候选装机投运，在相同逐时需求下，全年风光可用总电量与先验表吻合，但发电、弃电、水电及储能仍有差异。差异可与运行规则有关，仍需核对逐日/逐站风光曲线、水文、机组组合和储能初态后才可定量归因。本报告不公布真实项目数值、图片或可还原元数据。The comparison aligns demand and annual renewable availability, while the remaining technical assumptions still require audit.
 

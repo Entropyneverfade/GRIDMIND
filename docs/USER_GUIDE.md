@@ -34,11 +34,13 @@ Gurobi 在 DP 模式中优化**年度状态路径**并与 Bellman 递推交叉�
 
 存档的 `tables/跨区运行和碳硫属性汇总.xlsx` 含分区年度、机组技术、线路利用与逐时属性四页；同目录CSV可复用。`run_manifest.json` 含输入文件SHA-256、求解方式及最大守恒残差。点击“查看8760小时运行图”打开全网图，再用窗口内下拉框选分区；可按日/周/月/年或任意小时缩放。分区图中区外来电为独立供给，洋红线为本地需求加外送，淡紫虚线为本地需求。The viewer reads the saved hourly table and does not rerun optimization.
 
-0.2.12起，**每张运行图窗**顶部都有“显示分区”下拉框。单区规划图窗先显示“当前单区结果”；要在用户截图的同一窗口更换区域，点击旁边“载入分区结果…”，选择一个包含 `tables/hourly_network.csv` 的分区结果目录，随后下拉框即可选“全网汇总”或任一分区，无需返回主窗口。切换保留当前小时区间、日周月年尺度和框选功能；导出PNG的默认文件名含所选名称。全网汇总抵消内部进口/出口，各区图仍单列区外来电与外送。单区存档自身没有别区逐时值，不能凭空切换。The same window can load a zonal archive, then redraw cached curves without rerunning dispatch.
+0.2.13起，**每张运行图窗**顶部都有“显示分区”下拉框。打开带运行清单的项目结果时，程序会自动从输入工作簿“系统表、负荷表、节点表、电站表”识别有效分区；无有效业务的占位系统不列入。已有逐区8760小时结果的区域可直接切换；只有单区汇总结果时，其余数据库分区带“未生成分区逐时结果”标记，选择后会提示先运行分区模型，不把汇总曲线冒充其他区域。可在同一图窗点击“载入分区结果…”选择包含 `tables/hourly_network.csv` 的存档。切换保留小时区间、日周月年尺度和框选功能；全网汇总抵消内部进口/出口，各区图仍单列区外来电与外送。The menu reads region identities from the input workbook and only draws archived region-specific results.
 
 ## 查看与保存 / View and archive
 
 完成后“查看8760小时运行图”弹出单张堆叠图：供给与弃电在正向，抽蓄及电池充电在负向，洋红色线为需求；正常风光为纯色，弃光为黄色密正斜线、弃风为绿色密反斜线。日/周短窗口中少量薄弃电时，图上最多标记两次主要弃电小时及两类实际 MW，标记不放大电量面积。可按日、周、月、年、任意左闭右开小时区间缩放和前后翻页，并将当前图保存为 PNG。项目单区运行中，小容量储能机组按额定放电功率 MW 优先参与削峰；同容量按电站 ID，充电顺序不变。分区 CSV 模式的储能时序仍由输入文件固定给定。The viewer reloads a saved result without recalculation.
+
+鼠标位于图内时，**按住Ctrl并滚动滚轮**可按鼠标所在小时快速缩放；普通滚轮不触发此操作。横轴按365日规划年显示日期：日图保留6小时刻度，周图每天零点标日期，月与全年视图自动减少标签数量，全年使用各月首日。手动输入小时范围与快捷缩放共用同一左闭右开边界；闰年输入仍按省略2月29日的8760小时约定显示。Hold Ctrl and use the mouse wheel to zoom around the cursor; calendar labels thin automatically as the window widens.
 
 在图内按住鼠标左键水平拖拽，松开后弹出可独立关闭的时段统计窗；时间按全年小时序号显示，左闭右开边界对应被框触及的整小时。各类发电、弃风弃光、抽蓄/电池充放、区外来电、外送、本地负荷、总需求及缺供按原始逐时CSV求和，列出时段电量MWh和平均功率MW，并显示平衡残差。选完可继续切日/周/月/年；切图会关闭旧统计窗。工具栏处于平移或缩放模式时先退出该模式再框选。The popover sums stored hourly MW values; curtailment is reported separately from actual generation.
 

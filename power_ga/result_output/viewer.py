@@ -13,6 +13,7 @@ import re
 from pathlib import Path
 
 from ..common.domain import PLANNING_MONTH_HOURS
+from ..data_collection.project_case import database_regions
 
 # 配色与Origin静态图共用主色；交互窗口及无Origin的静态后端均用Python绘制。
 COLORS = {"thermal": "#FF0000", "solar": "#FFFF00", "wind": "#00DD00",
@@ -27,6 +28,7 @@ OPTIONAL_FIELDS = ("domestic_load_mw", "export_mw", "coal_mw", "gas_mw", "hydro_
 MONTH_HOURS = PLANNING_MONTH_HOURS  # 与运行引擎及逐月工作簿相同的365日规划年。
 ALL_ZONES_LABEL = "全网汇总"
 SINGLE_ZONE_LABEL = "当前单区结果"
+PENDING_ZONE_SUFFIX = "（未生成分区逐时结果）"
 
 # 框选统计只列数据实际包含的字段；分区案例的附加机组类型也逐项显示。
 GENERATION_LABELS = (("coal_mw", "煤电"), ("gas_mw", "燃气"),
@@ -53,6 +55,23 @@ def load_hours(result_dir: Path):
     if len(hours) != 8760:
         raise ValueError(f"查看窗口需要8760小时，实际{len(hours)}小时")
     return hours
+
+
+def archive_database_regions(result_dir: Path):
+    """沿运行清单回读输入库的系统表；缺源时不猜测数据库分区。"""
+    manifest_path = Path(result_dir) / "run_manifest.json"
+    if not manifest_path.is_file():
+        return ()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    source = manifest.get("source_folder")
+    if not isinstance(source, str) or not source:
+        return ()
+    source_path = Path(source)
+    if not source_path.is_absolute():
+        source_path = manifest_path.parent / source_path
+    if not source_path.exists():
+        return ()
+    return database_regions(source_path, manifest.get("target_year"))
 
 
 def load_network_zones(result_dir: Path, *, selected=None, expected_hours=8760):
@@ -167,6 +186,63 @@ def period_bounds(scale: str, number: int):
     else:
         raise ValueError(f"未知查看尺度: {scale}")
     return start, end
+
+
+def planning_date_label(hour: int, *, with_time=False):
+    """把小时序号映射为365日规划年的月/日；闰年也不插入2月29日。"""
+    if not 0 <= hour <= 8760:
+        raise ValueError("日期刻度必须位于全年小时0–8760")
+    if hour == 8760:
+        return "翌年1/1 00:00" if with_time else "翌年1/1"
+    day, clock = divmod(hour, 24)
+    for month, month_hours in enumerate(MONTH_HOURS, 1):
+        days = month_hours // 24
+        if day < days:
+            label = f"{month}/{day + 1}"
+            return f"{label} {clock:02d}:00" if with_time else label
+        day -= days
+    raise AssertionError("规划年月小时数未合计8760")
+
+
+def date_axis_ticks(start: int, end: int):
+    """每天零点提供日期刻度；宽窗口抽稀文字，显示端点仍有真刻度。"""
+    if not 0 <= start < end <= 8760:
+        raise ValueError("日期横轴小时范围必须位于0–8760")
+    span = end - start
+    if span <= 24:
+        # 单日图保留6小时细分；午夜标日期，其余刻度标时刻。
+        inner = range(((start // 6) + 1) * 6, end, 6)
+    elif span >= 180 * 24:
+        # 半年及全年图采用自然月首日，避免“每30天”在月界漂移。
+        month_starts = [sum(MONTH_HOURS[:index]) for index in range(13)]
+        inner = (hour for hour in month_starts if start < hour < end)
+    else:
+        days = span / 24
+        stride = 1 if days <= 10 else max(1, math.ceil(days / 12))
+        inner = range(((start // 24 // stride) + 1) * stride * 24,
+                      end, stride * 24)
+    ticks = sorted({start, end, *inner})
+    labels = []
+    for hour in ticks:
+        if hour % 24 == 0:
+            labels.append(planning_date_label(hour, with_time=span <= 24))
+        elif span <= 24 and hour not in (start, end):
+            labels.append(f"{hour % 24:02d}:00")
+        else:
+            labels.append(planning_date_label(hour, with_time=True))
+    return ticks, labels
+
+
+def zoom_hour_bounds(start: int, end: int, center: float, wheel_steps: float):
+    """Ctrl滚轮以鼠标位置为锚点缩放，边界限定在全年并保留整数小时。"""
+    if not 0 <= start < end <= 8760 or not math.isfinite(center):
+        raise ValueError("缩放中心或当前小时范围无效")
+    span = end - start
+    factor = 0.75 ** max(-4.0, min(4.0, wheel_steps))
+    width = max(1, min(8760, int(round(span * factor))))
+    anchor = max(0.0, min(1.0, (center - start) / span))
+    left = max(0, min(8760 - width, int(round(center - anchor * width))))
+    return left, left + width
 
 
 def selected_hour_bounds(xmin: float, xmax: float, visible_start: int, visible_end: int):
@@ -411,13 +487,11 @@ def draw_view(fig, hours, start: int, end: int, view_label="", mark_month_events
                frameon=False, handlelength=1.8, columnspacing=1.2)
 
     # 上方同一坐标轴已经把充电画成负面积、放电画成正出力；库存保留在逐时表。
-    top.set_xlabel("全年小时序号（小时0为年初）")
+    top.set_xlabel("日期 / 时间（365日规划年）")
     top.set_xlim(start, end)
-    # 实际显示区间两端都有向内真实刻度；标签数量随尺度自动减少。
-    target_step = 6 if end - start <= 24 else (24 if end - start <= 168 else
-                                                168 if end - start <= 744 else 2190)
-    ticks = [start] + list(range(((start // target_step) + 1) * target_step, end, target_step)) + [end]
-    top.set_xticks(sorted(set(ticks)))
+    # 日期位置锚定每天00:00；日图显示时刻，宽窗口减少日期文字以免重叠。
+    ticks, labels = date_axis_ticks(start, end)
+    top.set_xticks(ticks, labels=labels)
     top.tick_params(direction="in", which="both", top=False, right=False,
                     length=5, width=0.8, colors="#303846")
     top.spines[["top", "right"]].set_visible(False)
@@ -491,7 +565,7 @@ def export_monthly_views(hours, destination: Path):
 
 
 def launch(hours, smoke=False, zone_options=None, initial_zone=None,
-           smoke_network_dir=None):
+           smoke_network_dir=None, result_dir=None):
     """建立交互窗口；任何结果都可在此窗口载入分区存档并切换区域。"""
     import tkinter as tk
     from tkinter import filedialog, messagebox, ttk
@@ -507,7 +581,18 @@ def launch(hours, smoke=False, zone_options=None, initial_zone=None,
     # 先把单区存档也包装为一个可选视图：图窗始终展示分区控件。
     # 单区逐时表没有其他分区，必须由用户载入含hourly_network.csv的存档。
     network_mode = zone_options is not None
-    views = dict(zone_options) if network_mode else {SINGLE_ZONE_LABEL: hours}
+    catalog_error = ""
+    try:
+        catalog = archive_database_regions(result_dir) if not network_mode and result_dir else ()
+    except (OSError, ValueError, KeyError) as error:
+        # 元数据错误不阻断现有8760曲线；图窗仍可手动选择有效分区存档。
+        catalog, catalog_error = (), f"数据库分区读取失败：{error}"
+    single_name = catalog[0] if len(catalog) == 1 else SINGLE_ZONE_LABEL
+    views = dict(zone_options) if network_mode else {single_name: hours}
+    # 多区输入却只有汇总小时表时展示区域名称，但不冒用汇总曲线充当区内曲线。
+    pending_names = tuple(f"{name}{PENDING_ZONE_SUFFIX}" for name in catalog)
+    if not network_mode and len(catalog) <= 1:
+        pending_names = ()
     if not views:
         raise ValueError("查看窗口至少需要一组逐时曲线")
     initial_zone = initial_zone or next(iter(views))
@@ -520,15 +605,20 @@ def launch(hours, smoke=False, zone_options=None, initial_zone=None,
     root.title("源网荷储8760小时运行图" if network_mode else "源荷储8760小时运行图")
     root.geometry("1380x820")
     zone_choice = tk.StringVar(value=initial_zone or "")
+    last_valid_zone = initial_zone
     # 分区控件放在图窗顶部；单区结果也能直接载入另一份分区存档，不返回主窗口。
     zone_bar = ttk.Frame(root, padding=(7, 7, 7, 0))
     zone_bar.pack(side="top", fill="x")
     ttk.Label(zone_bar, text="显示分区").pack(side="left")
     zone_select = ttk.Combobox(zone_bar, textvariable=zone_choice,
-                               values=tuple(views), state="readonly", width=22)
+                               values=(*views, *pending_names), state="readonly", width=30)
     zone_select.pack(side="left", padx=(5, 12))
     zone_note = tk.StringVar(value=("选择分区可查看逐时互济；全网汇总抵消内部交换"
                                     if network_mode else
+                                    f"数据库识别{len(catalog)}区；本次只有汇总逐时结果"
+                                    if pending_names else
+                                    "已按数据库系统表自动识别单区；可载入其他分区结果"
+                                    if catalog else catalog_error or
                                     "当前存档只有单区逐时表；可在这里载入分区结果"))
     ttk.Label(zone_bar, textvariable=zone_note, foreground="#46556A").pack(side="left", padx=8)
     controls = ttk.Frame(root, padding=7)
@@ -550,7 +640,7 @@ def launch(hours, smoke=False, zone_options=None, initial_zone=None,
     ttk.Entry(controls, textvariable=start_text, width=7).pack(side="left", padx=4)
     ttk.Label(controls, text="结束小时（不含）").pack(side="left", padx=(10, 0))
     ttk.Entry(controls, textvariable=end_text, width=7).pack(side="left", padx=4)
-    ttk.Label(controls, text="图内左键拖拽查看时段统计").pack(side="left", padx=(12, 0))
+    ttk.Label(controls, text="左键框选统计 · Ctrl+滚轮缩放").pack(side="left", padx=(12, 0))
     fig = Figure(figsize=(13, 7), dpi=100)
     canvas = FigureCanvasTkAgg(fig, master=root)
     canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
@@ -636,7 +726,7 @@ def launch(hours, smoke=False, zone_options=None, initial_zone=None,
             period_label = (f"第{number.get()}{scale.get()}" if scale.get() in {"日", "周", "月"}
                             else "全年8760小时" if scale.get() == "年" else f"自定义小时 {a}–{b - 1}")
             view_label = (f"{zone_choice.get()} · {period_label}"
-                          if network_mode else period_label)
+                          if network_mode or catalog else period_label)
             state = (a, b, view_label, scale.get() == "月")
             if state != displayed:
                 close_selection_popup()
@@ -669,18 +759,28 @@ def launch(hours, smoke=False, zone_options=None, initial_zone=None,
 
     def switch_region(_event=None):
         """保留当前小时区间，在缓存曲线中换区并重建选择器和图例。"""
-        nonlocal hours
-        hours = views[zone_choice.get()]
+        nonlocal hours, last_valid_zone
+        name = zone_choice.get()
+        if name not in views:
+            zone_choice.set(last_valid_zone)
+            messagebox.showinfo("尚无该区运行曲线",
+                                "数据库系统表定义了该分区，但本次单区存档没有该区8760小时出力。"
+                                "请先生成分区运行结果；程序不会复制全网曲线冒充分区数据。",
+                                parent=root)
+            return
+        last_valid_zone = name
+        hours = views[name]
         if displayed is not None:
             redraw(displayed[0], displayed[1])
 
     def activate_network_result(folder):
         """在当前图窗替换为另一份分区逐时存档，沿用已选的小时边界。"""
-        nonlocal views, hours, network_mode
+        nonlocal views, hours, network_mode, pending_names, last_valid_zone
         new_views = load_network_views(Path(folder))
-        views, network_mode = new_views, True
+        views, network_mode, pending_names = new_views, True, ()
         zone_select.configure(values=tuple(views))
         zone_choice.set(ALL_ZONES_LABEL)
+        last_valid_zone = ALL_ZONES_LABEL
         hours = views[ALL_ZONES_LABEL]
         root.title("源网荷储8760小时运行图")
         zone_note.set("选择分区可查看逐时互济；全网汇总抵消内部交换")
@@ -721,6 +821,21 @@ def launch(hours, smoke=False, zone_options=None, initial_zone=None,
             fig.savefig(path, dpi=240, facecolor="white")
             status.set("当前视图已保存：" + path)
 
+    def scroll_zoom(event):
+        """仅Ctrl+滚轮缩放鼠标所在小时；普通滚轮和工具栏模式保持原行为。"""
+        key = str(getattr(event, "key", "") or "").lower()
+        native = getattr(event, "guiEvent", None)
+        control_down = ("control" in key or "ctrl" in key or
+                        bool(getattr(native, "state", 0) & 0x0004))
+        if not control_down or toolbar.mode or displayed is None or event.inaxes not in fig.axes:
+            return
+        first, last = displayed[:2]
+        center = event.xdata if event.xdata is not None else (first + last) / 2
+        new_first, new_last = zoom_hour_bounds(first, last, center, event.step)
+        if (new_first, new_last) != (first, last):
+            scale.set("自定义")
+            redraw(new_first, new_last)
+
     ttk.Button(zone_bar, text="载入分区结果…", command=choose_network_result).pack(side="left", padx=4)
     ttk.Button(controls, text="应用尺度", command=apply_scale).pack(side="left", padx=4)
     ttk.Button(controls, text="按小时区间显示", command=lambda: (scale.set("自定义"), apply_scale())).pack(side="left", padx=4)
@@ -728,9 +843,14 @@ def launch(hours, smoke=False, zone_options=None, initial_zone=None,
     ttk.Button(controls, text="后一段", command=lambda: shift(1)).pack(side="left", padx=4)
     ttk.Button(controls, text="导出当前PNG", command=save_picture).pack(side="left", padx=4)
     zone_select.bind("<<ComboboxSelected>>", switch_region)
+    canvas.mpl_connect("scroll_event", scroll_zoom)
     ttk.Label(root, textvariable=status, padding=6).pack(side="bottom", fill="x")
     redraw(0, 24)
     if smoke:
+        if catalog and len(catalog) == 1 and zone_choice.get() != catalog[0]:
+            raise AssertionError("单区存档未按数据库系统表自动命名")
+        if len(zone_select.cget("values")) != len(views) + len(pending_names):
+            raise AssertionError("数据库分区目录未自动载入下拉框")
         if smoke_network_dir is not None:
             # 从单区窗口直接载入分区存档，验收用户指出的同窗入口。
             scale.set("自定义")
@@ -744,6 +864,18 @@ def launch(hours, smoke=False, zone_options=None, initial_zone=None,
             switch_region()
             if zone_choice.get() not in displayed[2]:
                 raise AssertionError("切换分区后图题未随所选分区更新")
+        # 无需真实鼠标即可验收组合键、缩放锚点与日历刻度。
+        from types import SimpleNamespace
+        before = displayed[:2]
+        middle = (before[0] + before[1]) / 2
+        scroll_zoom(SimpleNamespace(key="", guiEvent=None, inaxes=fig.axes[0],
+                                    xdata=middle, step=1))
+        if displayed[:2] != before:
+            raise AssertionError("普通滚轮不应缩放运行图")
+        scroll_zoom(SimpleNamespace(key="control", guiEvent=None, inaxes=fig.axes[0],
+                                    xdata=middle, step=1))
+        if displayed[1] - displayed[0] >= before[1] - before[0]:
+            raise AssertionError("Ctrl+滚轮未缩小显示小时区间")
         # 选中半小时至第三小时，验证统计浮窗、整数边界和Tk控件能后台创建。
         show_selection(0.5, 2.2)
         root.update_idletasks()
@@ -774,7 +906,7 @@ def main():
             draw_view(Figure(figsize=(10, 6)), hours, start, end)
         print("查看窗口后台校验通过：日、周、月、年、自定义")
     else:
-        launch(hours, smoke=args.gui_smoke)
+        launch(hours, smoke=args.gui_smoke, result_dir=args.result)
 
 
 if __name__ == "__main__":

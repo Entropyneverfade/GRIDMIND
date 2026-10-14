@@ -2,6 +2,7 @@
 
 import unittest
 import csv
+import json
 import subprocess
 import tempfile
 from pathlib import Path
@@ -11,15 +12,63 @@ import matplotlib
 
 matplotlib.use("Agg")
 from matplotlib.figure import Figure
+from openpyxl import Workbook
 
 from power_ga.result_output.viewer import (
-    aggregate_network_zones, draw_view, load_network_zones,
-    selected_hour_bounds, summarize_selected_hours)
+    aggregate_network_zones, archive_database_regions, date_axis_ticks,
+    draw_view, load_network_zones,
+    planning_date_label, selected_hour_bounds, summarize_selected_hours,
+    zoom_hour_bounds)
 from power_ga.result_output.origin_plot import _render
 from gridmind_app.main import launch_gui_child
 
 
 class ViewerPlotTests(unittest.TestCase):
+    def test_database_system_table_populates_only_active_regions(self):
+        """区域名称从输入库关系表识别；无负荷和电站的占位区不进入菜单。"""
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            source = base / "source" / "2029"
+            source.mkdir(parents=True)
+            book = Workbook()
+            book.active.title = "系统表"
+            book["系统表"].append(("系统ID", "名称"))
+            for row in ((0, "SYS"), (1, "甲区"), (2, "乙区"), (3, "占位区")):
+                book["系统表"].append(row)
+            for title, columns, rows in (
+                ("负荷表", ("负荷ID", "系统ID", "年Pmax"),
+                 ((1, 1, 10), (2, 2, 12), (3, 3, 0))),
+                ("节点表", ("节点ID", "系统ID"), ((10, 1), (20, 2))),
+                ("电站表", ("电站ID", "节点ID", "有效性"),
+                 ((1, 10, 1), (2, 20, 1)))):
+                sheet = book.create_sheet(title)
+                sheet.append(columns)
+                for row in rows:
+                    sheet.append(row)
+            book.save(source / "2029.xlsx")
+            result = base / "result"
+            result.mkdir()
+            (result / "run_manifest.json").write_text(
+                json.dumps({"source_folder": str(source.parent), "target_year": 2029}),
+                encoding="utf-8")
+            self.assertEqual(archive_database_regions(result), ("甲区", "乙区"))
+
+    def test_date_ticks_use_real_day_starts_and_thin_full_year(self):
+        """日/周的午夜标日期；全年只标自然月，并保留两端内向刻度。"""
+        self.assertEqual(planning_date_label(24 * 59), "3/1")
+        day_ticks, day_labels = date_axis_ticks(0, 24)
+        self.assertEqual(day_ticks, [0, 6, 12, 18, 24])
+        self.assertEqual(day_labels[0], "1/1 00:00")
+        week_ticks, week_labels = date_axis_ticks(0, 168)
+        self.assertEqual(week_ticks, list(range(0, 169, 24)))
+        self.assertEqual(week_labels[1], "1/2")
+        year_ticks, year_labels = date_axis_ticks(0, 8760)
+        self.assertEqual((year_ticks[0], year_ticks[-1]), (0, 8760))
+        self.assertEqual(len(year_ticks), 13)
+        self.assertEqual(year_labels[-1], "翌年1/1")
+        self.assertEqual(zoom_hour_bounds(0, 24, 12, 1), (3, 21))
+        self.assertEqual(zoom_hour_bounds(0, 8760, 4380, -1), (0, 8760))
+
     def test_network_aggregate_cancels_internal_exchange_and_keeps_zone_curves(self):
         """两区纯合成交换在全网抵消；分区图仍分别保留不同机组与外送。"""
         base = {f"{kind}_mw": 0.0 for kind in

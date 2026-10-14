@@ -12,7 +12,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-APP_VERSION = "0.2.12"
+APP_VERSION = "0.2.13"
 
 # 直接运行本文件或单文件EXE时，让窗口入口可导入同级算法包。
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -675,16 +675,18 @@ def main():
             views = load_network_views(args.viewer)
             launch(views["全网汇总"], zone_options=views, initial_zone="全网汇总")
         else:
-            launch(load_hours(args.viewer))
+            launch(load_hours(args.viewer), result_dir=args.viewer)
     elif args.viewer_switch_smoke:
         # 后台模拟用户从截图所示单区窗口载入分区存档，再切换区域。
         from power_ga.result_output.viewer import launch, load_hours
         single, network = args.viewer_switch_smoke
-        launch(load_hours(single), smoke=True, smoke_network_dir=network)
+        launch(load_hours(single), smoke=True, smoke_network_dir=network,
+               result_dir=single)
     elif args.viewer_smoke:
         # 冻结包也要创建真实Tk画布和框选浮窗，再后台销毁，不打扰桌面。
         from power_ga.result_output.viewer import launch, load_hours
-        launch(load_hours(args.viewer_smoke), smoke=True)
+        launch(load_hours(args.viewer_smoke), smoke=True,
+               result_dir=args.viewer_smoke)
     elif args.ga:
         show_ga_window(args.ga)
     elif args.dp:
