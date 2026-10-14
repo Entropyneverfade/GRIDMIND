@@ -11,6 +11,7 @@ from openpyxl import Workbook
 from examples.synthetic_eight_type import build_case
 from power_ga.common.domain import GASettings
 from power_ga.dynamic_planning import compare_ga_on_stages, solve_stage_planning
+from power_ga.initial_population.encoding import STAGE_SEED_POLICY
 from power_ga.operation_simulation.project_engine import simulate_project
 from power_ga.result_output.project_report import write_project_report
 from power_ga.result_output.origin_plot import plot_dynamic_stage_costs
@@ -127,6 +128,7 @@ def execute(destination: Path, discount_rate=0.07, origin_figures=False,
                 # 阶段t从1计数；贴现因子d_t=(1+r)^(-(t-1))，适用于两年与三年。
                 ("费用", "各年=累计年化资本费+全年变动费；第t年按1/(1+r)^(t-1)折现"),
                 ("求解", "Bellman递推，Gurobi 0/1状态模型独立校验；GA同表比较"),
+                ("GA初代", STAGE_SEED_POLICY),
                 ("边界", "单区域确定性运行；无网络潮流和概率可靠性")):
         notes.append(row)
     book.save(tables_dir / ("全规划年算法对比汇总.xlsx" if full_horizon
@@ -140,6 +142,7 @@ def execute(destination: Path, discount_rate=0.07, origin_figures=False,
     write_project_report(final_case, report_proxy, final_simulation,
                          destination / "final_year", make_figures=False, synthetic=True)
     audit = {"synthetic": True, "stages": [case.target_year for case in cases],
+             "ga_seed_policy": STAGE_SEED_POLICY,
              "candidate_bits": len(final_case.candidates), "dp_states": dp_states,
              "ga_states": ga_path, "dp_cost_yuan": dp.objective_yuan,
              "gurobi_cost_yuan": dp.gurobi_objective_yuan,

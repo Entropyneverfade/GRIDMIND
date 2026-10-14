@@ -7,6 +7,7 @@ from pathlib import Path
 from openpyxl import Workbook
 
 from ..data_collection.project_case import TECH_LABELS
+from ..initial_population.encoding import STAGE_SEED_POLICY
 
 
 def write_dynamic_report(result, case, output: Path, load_factor: float,
@@ -63,6 +64,7 @@ def write_dynamic_report(result, case, output: Path, load_factor: float,
             raise AssertionError("同口径GA费用低于DP最优值，请复查阶段费用或约束")
         comparison_audit = {
             "ga_feasible": ga_feasible,
+            "ga_seed_policy": STAGE_SEED_POLICY,
             "ga_states": list(ga_path),
             "ga_objective_yuan": ga_result.best.total_cost_yuan if ga_feasible else None,
             "dp_objective_yuan": result.objective_yuan,
@@ -119,6 +121,7 @@ def write_dynamic_report(result, case, output: Path, load_factor: float,
                    "前一年复用目标年风光曲线并缩放负荷；这是情景预测，不是年度源库重放")
     for item in (("项目", "说明"),
                  ("算法", "按年份Bellman状态递推；Gurobi 0/1状态选择模型独立核验"),
+                 ("多年度GA初代", "全不建/全建后按规划年交织单项目种子；策略标识" + STAGE_SEED_POLICY),
                  ("阶段输入方式", stage_input_mode),
                  ("前一年负荷系数", load_factor if stage_input_mode == "scaled" else "不适用"),
                  ("曲线", description),

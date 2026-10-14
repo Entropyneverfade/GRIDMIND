@@ -11,6 +11,7 @@ from pathlib import Path
 from power_ga.common.domain import GASettings
 from power_ga.data_collection.project_case import align_stage_case, load_project_case
 from power_ga.genetic_iteration.project_solver import optimize_project
+from power_ga.initial_population.encoding import STAGE_SEED_POLICY
 from power_ga.dynamic_planning import compare_ga_on_stages, solve_stage_planning
 from power_ga.operation_simulation.project_engine import simulate_project
 from power_ga.result_output.project_report import write_project_report
@@ -158,6 +159,9 @@ def execute(source: Path, year: int, costs: Path, output: Path, *,
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         manifest["ga_settings"] = {"population": population,
                                    "generations": generations, "seed": seed}
+        # 同样参数跨版本可得不同Gen=0；显式保存策略身份以支持结果复用。
+        manifest["ga_seed_policy"] = (STAGE_SEED_POLICY if algorithm == "dp"
+                                      else "single_year_baselines_random_v1")
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
                                  encoding="utf-8")
     if progress:

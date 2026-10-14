@@ -8,6 +8,7 @@ from ..common.domain import GASettings
 from ..fitness_and_convergence.evaluation import Evaluation
 from ..genetic_iteration.project_solver import evaluate_project
 from ..genetic_iteration.solver import optimize
+from ..initial_population.encoding import stage_single_project_seeds
 from ..operation_simulation.project_engine import simulate_project
 
 
@@ -201,14 +202,9 @@ def compare_ga_on_stages(cases, tables, discount_rate=0.07, settings=None):
                           final.required_firm_capacity_mw, final.reserve_gap_mw,
                           reserve_shortfall, over, feasible, violation)
 
-    # 对每个候选加入“仅末年建”和“首年建”两个单项目种子，
-    # 其余仍随机；这与PPT的初始种群和精英保留结构一致。
-    seeds = []
-    for stage in reversed(range(periods)):
-        for bit in range(count):
-            gene = [0] * (count * periods)
-            gene[stage * count + bit] = 1
-            seeds.append(tuple(gene))
+    # Gen=0只可放入population_size-2个单项目方案；按年交织种子，
+    # 使小种群不会因为末年优先列表截断而完全遗漏较早建设年份。
+    seeds = stage_single_project_seeds(count, periods, settings.seed)
     result = optimize(proxy, settings, evaluator=evaluate_bits, seed_population=seeds)
     path, state = [], 0
     for t in range(periods):

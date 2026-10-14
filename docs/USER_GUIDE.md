@@ -44,7 +44,7 @@ python -m unittest discover -s tests -q
 
 ## 结果解释 / Interpretation
 
-GA和DP对照须同时固定种群、最大代数和随机种子；这些设置连同年度输入指纹写入 `run_manifest.json`。若批处理未显式给出，默认值分别为12、12、1。The seed alone is insufficient to reproduce a GA run when the population size or generation limit differs.
+GA和DP对照须同时固定种群、最大代数、随机种子与**初代策略版本**；这些设置连同年度输入指纹写入 `run_manifest.json`。0.2.5的多年度初代标识为 `balanced_by_stage_v2`，使小种群的单项目种子按年均衡覆盖；0.2.4按末年优先排列，在相同数值参数下可给出不同GA路径。旧存档仍按当时EXE版本解释，DP/Gurobi阶段最优不受此初代排序影响。若批处理未显式给出，种群、代数、种子默认分别为12、12、1。The seed alone is insufficient to reproduce a GA run across different search budgets or initial-population policy versions.
 
 缺供、在线备用不足、不可消纳过剩和逐时平衡残差均原样存档。水电按逐月可用电量上界近似；储能内部能量跨日连续。成本是可编辑情景参数，公开合成案例的成本不代表项目报价。The engine is a deterministic single-region planning baseline without line-flow security, forced-outage probability or full reservoir cascade modeling.
 

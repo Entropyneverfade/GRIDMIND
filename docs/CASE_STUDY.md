@@ -66,13 +66,13 @@ Gurobi 优化的是预先经8760小时规则模拟计算的**阶段路径**，�
 
 按7%贴现，三年合计 **369,286,121.94 元**；Bellman与Gurobi目标逐分一致。DP运行了 \(3\times2^8=768\) 个年度状态；GA在已计算的同一状态费用表上查询1,179个不同的逐年建设染色体，路径同为 `(0,2,2)`，总费用差小于一分。These counts represent different work: DP computes annual hourly states, whereas GA looks up the shared table. They do not establish a wall-clock speed ranking.
 
-每个被选年度独立重跑8760小时：最大功率平衡残差 \(2.84\times10^{-14}\) MW，最大储能状态残差 \(3.55\times10^{-15}\) MWh，水电月预算超额0 MWh；三个年度的确定性缺供与在线备用不足均为0。2028年煤、气、水、生物质、抽蓄、电池、风、光八类均有正的实际供电或放电量。Independent replay, CSV/workbook parity and technology totals are stored in the [verification record](../examples/results/v0.2.4/full_horizon_verification.json) and [physical table](../examples/results/v0.2.4/full_horizon_physical.csv).
+每个被选年度独立重跑8760小时：最大功率平衡残差 \(2.84\times10^{-14}\) MW，最大储能状态残差 \(3.55\times10^{-15}\) MWh，水电月预算超额0 MWh；三个年度的确定性缺供与在线备用不足均为0。2028年煤、气、水、生物质、抽蓄、电池、风、光八类均有正的实际供电或放电量。Independent replay, CSV/workbook parity and technology totals are stored in the [v0.2.5 verification record](../examples/results/v0.2.5/full_horizon_verification.json) and [physical table](../examples/results/v0.2.5/full_horizon_physical.csv).
 
 ![Three-year DP annual and discounted costs, Origin native](../examples/previews/v0.2.4/full_horizon_stage_cost.png)
 
 ![Synthetic final-year 8760-hour dispatch](../examples/previews/v0.2.4/full_horizon_year_1.png)
 
-完整的[三年度GA/DP汇总工作簿](../examples/results/v0.2.4/full_horizon_comparison.xlsx)、[各年建设与费用](../examples/results/v0.2.4/full_horizon_stages.csv)、[八类电量](../examples/results/v0.2.4/full_horizon_technology.csv)、[末年8760小时与逐站储能工作簿](../examples/results/v0.2.4/full_horizon_final_year.xlsx)及[12张末年月图](FULL_HORIZON_GALLERY.md)分别归档。The final-year workbook contains the raw hourly values; images are separate previews.
+当前0.2.5策略生成的[三年度GA/DP汇总工作簿](../examples/results/v0.2.5/full_horizon_comparison.xlsx)、[各年建设与费用](../examples/results/v0.2.5/full_horizon_stages.csv)、[八类电量](../examples/results/v0.2.5/full_horizon_technology.csv)、[末年8760小时与逐站储能工作簿](../examples/results/v0.2.5/full_horizon_final_year.xlsx)及[12张末年月图](FULL_HORIZON_GALLERY.md)分别归档；原0.2.4工作簿仍保存在对应版本目录以便核对。The current workbook records the balanced seed policy; the selected physical path and monthly figures are unchanged.
 
 ## 3. 同口径算法对比 / Like-for-like comparison
 
@@ -93,18 +93,18 @@ Gurobi 优化的是预先经8760小时规则模拟计算的**阶段路径**，�
 
 ### 有限搜索预算与随机种子 / Limited-budget seed sensitivity
 
-为检查上述0%差距是否依赖初代和搜索预算，另在**同一张**三年度768行8760小时阶段费用表上运行4组预算，每组固定随机种子1–20。两位精英、交叉率0.85、逐位变异率0.045、最小1代及停滞5代在四组中相同。每条GA路径的阶段费用由公开全状态表独立重算。The study changes population size and maximum generations together, so it cannot isolate either factor's individual causal effect.
+为检查上述0%差距是否依赖初代和搜索预算，在**同一张**三年度768行8760小时阶段费用表上按4组预算、每组种子1–20各运行一次。0.2.4将单项目建设种子按“末年→首年”放入Gen=0，小种群截断时可能完全遗漏较早建设年；0.2.5改为各规划年交织，种子控制各年候选位序，任一截断前缀的年度种子数最多相差1。两个版本均保留全不建、全建、两位精英、交叉率0.85和逐位变异率0.045。The scenario costs, constraints, seeds and GA operators are identical; only the single-project seed ordering changes.
 
-| 种群 / Population | 最多代数 / Max generations | 20种子达到DP最优 / Hits | 平均相对差距 / Mean gap | 最大相对差距 / Max gap |
-|---:|---:|---:|---:|---:|
-| 8 | 4 | 1/20 | 42.12% | 151.75% |
-| 10 | 6 | 1/20 | 36.35% | 151.75% |
-| 12 | 12 | 20/20 | 0.00% | 0.00% |
-| 64 | 80 | 20/20 | 0.00% | 0.00% |
+| 种群 / Population | 最多代数 / Max generations | 旧策略命中 / v0.2.4 hits | 均衡策略命中 / v0.2.5 hits | 旧平均差距 / Old mean gap | 新平均差距 / New mean gap |
+|---:|---:|---:|---:|---:|---:|
+| 8 | 4 | 1/20 | 8/20 | 42.12% | 30.93% |
+| 10 | 6 | 1/20 | 8/20 | 36.35% | 15.01% |
+| 12 | 12 | 20/20 | 10/20 | 0.00% | 6.90% |
+| 64 | 80 | 20/20 | 20/20 | 0.00% | 0.00% |
 
-这一变化主要受**当前Gen=0种子截断顺序**影响：先放全不建/全建，再按“末年→首年、项目位序”放单项目建设种子，种群填满后余下种子不进入初代。种群12已容纳本例“次年只建燃气”的最优种子，所以20次均在Gen=0达到最优；种群8与10的初代没有该种子，仍各有1个随机种子经遗传搜索找到最优。This is an implementation-specific search-budget diagnostic, not a claim that a population of 12 is generally sufficient or that GA matches DP on other systems.
+旧策略的种群12恰好把本例最优的“次年只建燃气”直接放进Gen=0，导致20次都在初代达到最优；均衡策略不保证把该方案放进小种群，因此该档命中降为10/20。这揭示旧版0%结果的初代依赖，并非物理模型或费用发生变化。新版种群8与10的命中提高，但四档同时改变种群数和最多代数，不能分别归因，更不能推断一般最优概率。The v0.2.5 source and EXE record `balanced_by_stage_v2` in their planning archives so older results remain identifiable. Reproduce the earlier policy from immutable [v0.2.4 source commit](https://github.com/Entropyneverfade/GRIDMIND/commit/b544d3be3212f105b2f82125762b1b05307c94f4).
 
-80条最终路径全部满足阶段可行性和建设单调性；涉及的59个不同“年–状态”又独立重跑8760小时，最大功率平衡残差为 \(2.84\times10^{-14}\) MW、最大储能方程残差为 \(3.55\times10^{-15}\) MWh。结果见[逐种子CSV](../examples/results/v0.2.4/ga_sensitivity_seeds.csv)、[预算汇总CSV](../examples/results/v0.2.4/ga_sensitivity_summary.csv)和[验收记录](../examples/results/v0.2.4/ga_sensitivity_audit.json)。DP/Gurobi证明的是此有限枚举问题在既定运行规则下的路径最优；GA的命中比例是这20个合成随机种子的观察值。The cost-table equality and all 80 discounted path totals are independently checked by `examples.verify_ga_sensitivity`.
+新版与旧版的完整年度状态费用表SHA-256均为 `107c28e075ee129a8716165f6c37b11560c67a304b04fcd8cb638d4038b66b23`；Bellman/Gurobi最优路径仍为 `(0,2,2)`，目标仍为369,286,121.94元。新版80条GA路径逐行从该表重算、全部满足建设单调性和阶段可行性；34个不同“年–状态”独立回放8760小时，最大功率平衡残差 \(2.84\times10^{-14}\) MW、最大储能方程残差 \(3.55\times10^{-15}\) MWh。见[新版逐种子CSV](../examples/results/v0.2.5/ga_sensitivity_seeds.csv)、[新版预算汇总](../examples/results/v0.2.5/ga_sensitivity_summary.csv)、[新版验收记录](../examples/results/v0.2.5/ga_sensitivity_audit.json)；[旧版逐种子CSV](../examples/results/v0.2.4/ga_sensitivity_seeds.csv)仍可复核。The 20-seed hit counts are observations for this fixed synthetic case, not a wall-clock speed ranking or an algorithm-wide guarantee.
 
 ## 4. 图、表与复现 / Figures, tables and reproduction
 
@@ -118,7 +118,7 @@ python -m examples.verify_full_case --output synthetic_ga/exhaustive_audit.json
 python -m examples.synthetic_dynamic_case --output synthetic_ga_dp --origin-figures
 python -m examples.synthetic_dynamic_case --output synthetic_ga_dp_full --full-horizon --origin-figures
 python -m examples.verify_dynamic_case --output synthetic_ga_dp_full
-python -m examples.synthetic_ga_sensitivity --output synthetic_ga_sensitivity
+python -m examples.synthetic_ga_sensitivity --output synthetic_ga_sensitivity  # 0.2.5均衡初代
 python -m examples.verify_ga_sensitivity --output synthetic_ga_sensitivity --reference-states synthetic_ga_dp_full/tables/all_stage_states.csv
 # 也可直接验收仓库附带的合成结果，无需重跑768个年度状态
 python -m examples.verify_ga_sensitivity --output examples/results/v0.2.4 --reference-states examples/results/v0.2.4/full_horizon_all_states.csv

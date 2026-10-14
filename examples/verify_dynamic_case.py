@@ -11,6 +11,7 @@ from openpyxl import load_workbook
 from examples.synthetic_dynamic_case import build_stages
 from power_ga.common.domain import PLANNING_MONTH_HOURS
 from power_ga.genetic_iteration.project_solver import evaluate_project
+from power_ga.initial_population.encoding import STAGE_SEED_POLICY
 from power_ga.operation_simulation.project_engine import simulate_project
 
 
@@ -36,6 +37,8 @@ def verify(destination: Path):
     audit = json.loads((destination / "synthetic_dynamic_audit.json").read_text(encoding="utf-8"))
     if audit.get("synthetic") is not True or len(audit["stages"]) not in (2, 3):
         raise AssertionError("仅支持附带合成标志的两年度或三年度案例")
+    if audit.get("ga_seed_policy") != STAGE_SEED_POLICY:
+        raise AssertionError("合成结果与当前GA初代策略版本不一致")
     cases = build_stages(full_horizon=len(audit["stages"]) == 3)
     if tuple(audit["stages"]) != tuple(case.target_year for case in cases):
         raise AssertionError("存档年份与固定种子合成输入不一致")

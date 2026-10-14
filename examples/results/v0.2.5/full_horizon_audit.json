@@ -1,0 +1,26 @@
+{
+  "synthetic": true,
+  "stages": [
+    2026,
+    2027,
+    2028
+  ],
+  "ga_seed_policy": "balanced_by_stage_v2",
+  "candidate_bits": 8,
+  "dp_states": [
+    0,
+    2,
+    2
+  ],
+  "ga_states": [
+    0,
+    2,
+    2
+  ],
+  "dp_cost_yuan": 369286121.9412637,
+  "gurobi_cost_yuan": 369286121.9412637,
+  "ga_cost_yuan": 369286121.94126374,
+  "ga_gap_fraction": 1.6140504945612596e-16,
+  "max_balance_residual_mw": 2.842170943040401e-14,
+  "solver": "Gurobi 13.0.3 verified"
+}

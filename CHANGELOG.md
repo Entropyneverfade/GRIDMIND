@@ -1,5 +1,11 @@
 # Development progress / 开发进度
 
+## 2026-10-14 — Stage 0.2.5 / 多年度GA初代均衡
+
+- 多年度GA的单项目Gen=0种子改按规划年交织，任意容量截断前缀的年度种子数最多相差1；旧版末年整块优先排序不再默认。Multi-year single-project seeds are interleaved across years before population truncation, removing a structural late-year preference.
+- 在同一三年度合成768状态费用表上重复4组预算×20种子；完整费用表指纹与DP/Gurobi最优未变。旧/新命中次数为1→8、1→8、20→10、20→20；新版34个被选年度状态独立回放8760小时。The before/after comparison exposes the old Gen=0 optimum-seeding artifact without changing hourly costs or feasibility.
+- 运行清单及阶段审计新增初代策略标识 `balanced_by_stage_v2`，使相同GA参数跨版本复算时可追溯。Planning archives now record the initial-population policy version.
+
 ## 2026-10-14 — Stage 0.2.4 / 全规划年源库阶段
 
 - 在同一三年度合成8760小时状态费用表上增加4组搜索预算×20随机种子的GA敏感性表、独立费用验收与59个所选年度状态物理回放；披露小种群的Gen=0种子截断偏置。Added a transparent 80-run synthetic GA budget check with independent objective verification and physical replay; its seed-order limitation is explicit.

@@ -4,9 +4,12 @@ GRIDMIND is a modular research prototype for generation planning and chronologic
 
 **0.2.3 修正 / Correction:** 0.2.1 的“年度源库”模式误用终期既有装机；0.2.2 虽修正容量，却遗漏仅中间年度出现的非终期计划项目。使用过这两个版本的年度源库结果请用 0.2.3 或更新版本重算。The source-input mode in 0.2.1 reused terminal existing capacity, while 0.2.2 omitted source-year-only planned projects. Rerun those results with 0.2.3 or newer. The controlled synthetic scaled case is unaffected by these annual alignment issues.
 
+**0.2.5 GA初代 / GA seeding:** 多年度比较中的单项目初代改为按规划年交织，并在运行清单中记录策略版本；旧0.2.4的预算实验保留作历史对照。The annual stage costs and Bellman/Gurobi solution are unchanged; see the [paired seed-policy comparison](docs/CASE_STUDY.md).
+
 ## Current capabilities / 当前能力
 
 - Binary candidate-project encoding, initial population, selection, crossover, mutation, elitism and convergence records. / 候选项目二元编码、初代、选择、交叉、变异、精英保留及收敛记录。
+- Stage-balanced single-project seeds for the multi-year GA comparison, with the policy version saved in result archives. / 多年度GA按规划年均衡放入单项目初代种子，并把策略版本写入存档。
 - Two-year or full annual-source stage-state dynamic programming with Bellman recursion and an independently optimized Gurobi state model; the desktop app can switch planning methods. / 双年度或完整年度源库的状态动态规划与 Gurobi 独立核验，桌面应用可切换规划方法。
 - A deterministic 8,760-hour single-region operation model covering coal, gas, conventional hydro, pumped storage, battery storage, wind, solar PV and biomass. / 单区域全年8760小时确定性运行，覆盖八类机组。
 - Storage charge, discharge and internal energy carry continuously across day and month boundaries. / 储能功率与内部库存跨日、跨月连续。

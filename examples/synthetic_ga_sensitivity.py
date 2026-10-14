@@ -107,7 +107,7 @@ def execute(destination: Path):
              "ga_settings_fixed": {"min_generations": 1, "stall_generations": 5,
                                    "elite_count": 2, "crossover_rate": 0.85,
                                    "mutation_rate": 0.045},
-             "initial_population_policy": "两个基准方案+按末年到首年的单项目建设种子，余位随机；种群容量截断种子列表",
+             "initial_population_policy": "两个基准方案+按年份交织的单项目建设种子，余位随机；每个年份在截断前均衡覆盖，位序由种子确定",
              "selected_unique_annual_states_replayed": replayed,
              "max_balance_residual_mw": max_balance,
              "max_storage_residual_mwh": max_storage,

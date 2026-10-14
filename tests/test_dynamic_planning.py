@@ -82,6 +82,7 @@ class DynamicPlanningTests(unittest.TestCase):
                                  (ga, (0, 1)), exogenous)
             audit = json.loads((Path(folder) / "dynamic_audit.json").read_text(encoding="utf-8"))
             self.assertEqual(.05, round(audit["ga_comparison"]["relative_gap"], 8))
+            self.assertEqual("balanced_by_stage_v2", audit["ga_comparison"]["ga_seed_policy"])
             self.assertEqual("source", audit["stage_input_mode"])
             self.assertEqual(1000, audit["exogenous_annual_cost_yuan"])
             self.assertTrue((Path(folder) / "tables" / "ga_dp_comparison.csv").is_file())
@@ -224,6 +225,7 @@ class DynamicPlanningTests(unittest.TestCase):
             self.assertEqual({"2026", "2027", "2028"}, set(manifest["stage_input_sha256"]))
             self.assertEqual({"population": 12, "generations": 12, "seed": 1},
                              manifest["ga_settings"])
+            self.assertEqual("balanced_by_stage_v2", manifest["ga_seed_policy"])
             self.assertLess(simulation.summary["max_balance_residual_mw"], 1e-6)
             book = load_workbook(output / "tables" / "动态规划阶段汇总.xlsx",
                                  read_only=True, data_only=True)

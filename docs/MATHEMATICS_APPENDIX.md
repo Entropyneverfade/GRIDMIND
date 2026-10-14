@@ -218,9 +218,9 @@ F_3(2)&=F_2(2)+\frac{153{,}276{,}393.99509826}{1.07^2}
 \end{aligned}
 \]
 
-最后一式用程序未舍入数值复算；上式中间显示的小数位仅为便于阅读，最终验收以[阶段原值CSV](../examples/results/v0.2.4/full_horizon_stages.csv)为准。Bellman和独立Gurobi状态MILP的目标同为369,286,121.9412637元。GA按年度编码24位染色体，其每一组8位折叠为累计状态，并只查询相同的 \(c_t(s)\) 表；固定种子运行得到同一路径，目标相差 \(5.96\times10^{-8}\) 元，为浮点加法顺序所致。The cent-level comparison gap is zero; no general GA optimality claim follows.
+最后一式用程序未舍入数值复算；上式中间显示的小数位仅为便于阅读，最终验收以[当前阶段原值CSV](../examples/results/v0.2.5/full_horizon_stages.csv)为准。Bellman和独立Gurobi状态MILP的目标同为369,286,121.9412637元。GA按年度编码24位染色体，其每一组8位折叠为累计状态，并只查询相同的 \(c_t(s)\) 表；固定种子运行得到同一路径，目标相差 \(5.96\times10^{-8}\) 元，为浮点加法顺序所致。The cent-level comparison gap is zero; no general GA optimality claim follows.
 
-全状态费用表共有 \(3\cdot2^8=768\) 行。对于所选路径，每年独立回算逐时平衡、储能状态 \(E_{t+1}-E_t-\eta_{ch}P_{ch}+P_{dis}/\eta_{dis}\)、水电月预算 \(\sum_{h\in m}P^{hydro}_h\le B_m\)，同时核对CSV与工作簿的阶段费用。公开[验收结果](../examples/results/v0.2.4/full_horizon_verification.json)给出最大残差与八类实际电量表。These are implementation consistency checks for the declared single-region rule model; they do not establish network security or stochastic adequacy.
+全状态费用表共有 \(3\cdot2^8=768\) 行。对于所选路径，每年独立回算逐时平衡、储能状态 \(E_{t+1}-E_t-\eta_{ch}P_{ch}+P_{dis}/\eta_{dis}\)、水电月预算 \(\sum_{h\in m}P^{hydro}_h\le B_m\)，同时核对CSV与工作簿的阶段费用。公开[当前验收结果](../examples/results/v0.2.5/full_horizon_verification.json)给出最大残差与八类实际电量表。These are implementation consistency checks for the declared single-region rule model; they do not establish network security or stochastic adequacy.
 
 ### GA预算比较的统计口径 / GA budget comparison metrics
 
@@ -233,4 +233,24 @@ H=\sum_{k=1}^{20}\mathbf1[g_k\le10^{-10}],\quad
 \overline g=\frac1{20}\sum_{k=1}^{20}g_k.
 \]
 
-这里 \(J^*=369{,}286{,}121.9412637\) 元是同表Bellman/Gurobi目标；\(H\) 是20个预先声明的种子中达到数值最优的次数，\(\overline g\) 是平均相对差距，最大差距为 \(\max_k g_k\)。由于四组同时改变种群数和最多代数，且小种群截断末年优先排列的单项目初代种子，这些指标只说明本程序在此合成算例下的预算敏感性。The observed hit rate is not a confidence interval or an algorithm-wide success probability; no runtime ranking is inferred from table lookups versus 8,760-hour simulations.
+这里 \(J^*=369{,}286{,}121.9412637\) 元是同表Bellman/Gurobi目标；\(H\) 是20个预先声明的种子中达到数值最优的次数，\(\overline g\) 是平均相对差距，最大差距为 \(\max_k g_k\)。四组同时改变种群数和最多代数，所以预算表不能分离两者的作用。The observed hit rate is not a confidence interval or an algorithm-wide success probability; no runtime ranking is inferred from table lookups versus 8,760-hour simulations.
+
+### 多年度Gen=0的年度均衡构造 / Stage-balanced initial seeds
+
+设有 \(T\) 个规划年、\(n\) 个候选项目。单项目种子是仅有一位为1的 \(Tn\) 维向量 \(e_{tn+i}\)，表示项目 \(i\) 在年 \(t\) 建设。0.2.4曾按末年到首年整块排序，所以种群容量只容纳前 \(K=P-2\) 个种子时，较早年度可能一个都不进入Gen=0。Version 0.2.5 retains the two all-zero/all-one baselines and changes only the order of these single-project seeds.
+
+给定GA随机种子，先生成规划年排列 \(\sigma\)，并对每个规划年生成候选位排列 \(\pi_t\)。新版按候选轮次 \(q=0,\ldots,n-1\) 与年序位 \(j=0,\ldots,T-1\) 交织：
+
+\[
+z_{qT+j}=e_{\sigma(j)n+\pi_{\sigma(j)}(q)}.
+\]
+
+各 \(\pi_t\) 均为置换，所以完整种子表仍恰好覆盖每个“年×候选”组合一次；任取前 \(K\) 个种子，每年获得的种子数 \(N_t(K)\) 满足
+
+\[
+N_t(K)\in\left\{\left\lfloor K/T\right\rfloor,
+\left\lceil K/T\right\rceil\right\},\qquad
+\max_tN_t(K)-\min_tN_t(K)\le1.
+\]
+
+这只消除按末年整块截断的结构性偏置，不保证最优染色体进入Gen=0，也不保证GA找到全局最优。相同随机种子可复现排列；运行清单和GA/DP审计均记录 `balanced_by_stage_v2`，便于区别旧版归档。The Bellman/Gurobi annual-state costs and physical dispatch are unchanged by this population-order correction.
