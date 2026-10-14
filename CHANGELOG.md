@@ -3,7 +3,7 @@
 ## 2026-10-14 — Stage 0.2.14 / 站级机组动态约束与默认参数审计
 
 - 单区项目运行新增站级小时爬坡、跨日最短开停、日最大启动次数、月最大/最小出力、月最小开机台数、逐月计划检修及燃气源表启停编码/启动成本。参数缺项使用标明来源的公开试算值；源表占位爬坡1.0不被误用为物理验证。The source parameter takes precedence and every fallback is labeled in the exported snapshot.
-- 运行工作簿新增“机组逐时状态”和“机组运行参数”；纯合成单年度 GA 已重跑并发布逐站CSV、综合工作簿及12张月图。Synthetic independent replay checks 43,800 station-hours with zero hourly ramp and monthly-bound residual; maximum power balance residual is approximately $1.42\times10^{-14}$ MW.
+- 运行工作簿新增“机组逐时状态”和“机组运行参数”；纯合成单年度 GA 已重跑并发布逐站CSV、综合工作簿及12张月图。Synthetic independent replay checks 43,800 station-hours with zero hourly ramp and monthly-bound residual; maximum power balance residual is approximately $`1.42\times10^{-14}`$ MW.
 - 67项本地合成测试通过，包含先失败后修复的爬坡、跨日最短开停、月最大出力反例。Daily station-level commitment is a conservative heuristic; unit-level, sub-hourly, automatic annual maintenance scheduling and network-coupled planning remain open.
 
 ## 2026-10-14 — Stage 0.2.13 / 数据库分区识别与日期滚轮缩放
@@ -20,13 +20,13 @@
 
 - 分区结果查看器增加“全网汇总/各分区”下拉框，切换时保持时间尺度与框选统计；全网图逐小时验证并抵消内部进口和外送，各区图保留本区交换。The selector redraws cached archived curves without another solver run.
 - 四张固定种子合成分区全年预览直接嵌入五章报告；图形使用应用的Python/Matplotlib后端，绝非真实省级运行数据。Four region previews document the supported viewer mode.
-- 61项本地合成测试通过；四区8760小时加全网图的最大逐时功率残差 $5.68\times10^{-14}$ MW；冻结单文件EXE的分区切换与框选浮窗后台验收退出码0，桌面快捷方式仍指向当前根目录EXE。The packaged viewer passed its hidden-window smoke check.
+- 61项本地合成测试通过；四区8760小时加全网图的最大逐时功率残差 $`5.68\times10^{-14}`$ MW；冻结单文件EXE的分区切换与框选浮窗后台验收退出码0，桌面快捷方式仍指向当前根目录EXE。The packaged viewer passed its hidden-window smoke check.
 
 ## 2026-10-14 — Stage 0.2.10 / 框选统计与单一EXE交付
 
 - 交互查看器新增左键横向框选，浮窗按整小时汇总机组发电、风光弃电、抽蓄和电池充放、本地负荷、外送与区外来电，并显示MWh、平均MW和选段平衡残差。The nonmodal popover reads the archived hourly table and survives no stale redraws.
 - Windows打包脚本只交付根目录当前版EXE；旧版被占用时新版留在应用子目录，历史EXE转移至本地归档；可选创建桌面快捷方式。The repository documents current verified capabilities and practical advantages without publishing private cases.
-- 60项本地合成测试通过；实际四区合成168小时框选的平衡残差为约 $3.64\times10^{-12}$ MWh；冻结EXE的隐藏窗口浮窗验收退出码0，桌面快捷方式指向当前EXE。Sixty local tests and the packaged viewer smoke check passed.
+- 60项本地合成测试通过；实际四区合成168小时框选的平衡残差为约 $`3.64\times10^{-12}`$ MWh；冻结EXE的隐藏窗口浮窗验收退出码0，桌面快捷方式指向当前EXE。Sixty local tests and the packaged viewer smoke check passed.
 
 ## 2026-10-14 — Stage 0.2.9 / 后台绘图窗口修复
 
@@ -48,7 +48,7 @@
 
 - 项目运行的富余风光按可用份额分摊弃电，三年度纯合成案例重跑、独立物理回算后同时出现弃风和弃光；12张月图、五种缩放图及Origin GA/DP图重新生成。The synthetic GA/DP case and figures were regenerated after the curtailment rule change.
 - 新增独立分区小时LP、仅适用可控通道的启发式路径调度、8760小时合成网络试验及碳/SO₂/新能源属性追踪。公开资料仅确定示意连接方向，容量、电纳和需求均为合成假设；这些API尚未接入应用规划入口。Zonal transfer and physical attribute tracing are verified modules, not a production network model.
-- 研究报告合并成五章，GitHub数学公式改为$...$/$$...$$，19张新版图直接嵌入。Real project inputs and derived outputs remain local.
+- 研究报告合并成五章，使用 GitHub 支持的行内与块级数学公式，19 张新版图直接嵌入。项目原始输入和派生结果留在本机。
 
 ## 2026-10-14 — Stage 0.2.6 / 动态规划过程可见性
 
